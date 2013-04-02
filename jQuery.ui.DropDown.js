@@ -4,7 +4,8 @@
             other: false,
             listSize: 10,
             maxHeight: 350,
-            emptyText: '-- Choose --',
+            emptyText: 'Choose Item',
+            allowEmpty: true,
             ignoreEmptyOptions: true,
             emptyOption: '^$|^0$'
         },
@@ -17,17 +18,21 @@
             this.element
                 .addClass('ui-dropdown-source');
 
-            $.each(['float', 'position', 'width', 'height', 'top', 'left', 'right', 'bottom', 'display', 'line-height', 'font-size'],
-                $.proxy(function (idx, val) {
-                    this.wrap.css(val, this.element.css(val));
-                }, this));
-
             this.element.hide();
 
             var style = window.getComputedStyle(this.element[0]);
             this.wrap
                 .css({
-                    width: style.width
+                    width: style.width,
+                    height: style.height,
+                    float: style.float,
+                    position: style.position,
+                    top: style.top,
+                    left: style.left,
+                    right: style.right,
+                    bottom: style.bottom,
+                    lineHeight: style.lineHeight,
+                    fontSize: style.fontSize
                 });
 
             this.element.wrap(this.wrap);
@@ -72,8 +77,8 @@
         },
 
         /***********************************
-         **     Public methods
-         ***********************************/
+        **     Public methods
+        ***********************************/
 
         refresh: function () {
             var data = this._consumeSelect(this.element);
@@ -96,7 +101,7 @@
                 var rules = this.element.rules();
                 if (this._hasProperties(rules)) {
                     this.value
-                        .rules(this.element.rules('remove'));
+                    .rules(this.element.rules('remove'));
                 }
             }
 
@@ -178,8 +183,8 @@
         },
 
         /***********************************
-         **     Helpers
-         ***********************************/
+        **     Helpers
+        ***********************************/
 
         _consumeSelect: function (el) {
             var data = [],
@@ -207,6 +212,19 @@
         _buildMenu: function (data) {
             var items = [];
 
+            if (this.options['allowEmpty']) {
+                var el = $('<li>')
+                    .data('menu-item', { text: '', value: '', selected: false })
+                    .attr('value', '')
+                    .append('&nbsp;')
+                    .on({
+                        mouseenter: function () { $(this).addClass('ui-state-hover'); },
+                        mouseleave: function () { $(this).removeClass('ui-state-hover'); }
+                    });
+
+                items.push(el[0]);
+            }
+
             $.each(data, function (index, item) {
                 var el = $('<li>')
                     .data('menu-item', item)
@@ -215,14 +233,13 @@
                 if (item.icon) {
                     el.append(
                         $('<span>').appendClass('ui-icon')
-                            .appendClass(item.icon)
+                                   .appendClass(item.icon)
                     );
                 }
 
                 el.append(item.text);
                 el.toggleClass('ui-selected', item.selected);
                 el.on({
-                    //click: $.proxy(this._onItemClicked, this),
                     mouseenter: function () { $(this).addClass('ui-state-hover'); },
                     mouseleave: function () { $(this).removeClass('ui-state-hover'); }
                 });
@@ -239,8 +256,8 @@
             //just include the height of the visible items
             var listSize = this.options['listSize'];
             var height = this.list
-                .children()
-                .totalHeight(true, listSize);
+                    .children()
+                    .totalHeight(true, listSize);
 
             //Add the UL list margins & paddings
             height += this.list.outerHeight() -
@@ -270,18 +287,18 @@
             var btn = $('<div>', {
                 'class': 'ui-dropdown-trigger'
             }).css({
-                    position: 'absolute',
-                    top: '3px',
-                    right: '3px',
-                    bottom: '3px',
-                    width: '16px',
-                    borderRadius: '3px'
-                }).on({
-                    click: $.proxy(this.toggle, this)
-                }).append(
-                    $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
-                        .css('margin-top', '1px')
-                );
+                position: 'absolute',
+                top: '3px',
+                right: '3px',
+                bottom: '3px',
+                width: '16px',
+                borderRadius: '3px'
+            }).on({
+                click: $.proxy(this.toggle, this)
+            }).append(
+                $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
+                    .css('margin-top', '1px')
+            );
 
             return btn;
         },
@@ -351,7 +368,8 @@
             this.display = $('<input>', {
                 type: 'text',
                 readonly: 'readonly',
-                'class': 'ui-dropdown-display'
+                'class': 'ui-dropdown-display',
+                placeholder: this.options['emptyText']
             });
 
             this.display
@@ -463,8 +481,8 @@
         },
 
         /***********************************
-         **     Events
-         ***********************************/
+        **     Events
+        ***********************************/
 
         _onValueChanged: function (event) {
             var val = this.value.val();
@@ -512,11 +530,11 @@
             this.lastKeyisTab = event.which == 9;
             if (this.keyBlocks.indexOf(event.which) > -1) return;
             /*
-             if (event.which == 9) { //Allow default behavior for tab key
-             this.lastKeyisTab = true;
-             return;
-             }
-             */
+            if (event.which == 9) { //Allow default behavior for tab key
+            this.lastKeyisTab = true;
+            return;
+            }
+            */
             event.preventDefault();
             $.debug('debug', this.widgetName, 'Keypress', event.which);
             var open = this.list.is(':visible');
@@ -554,7 +572,7 @@
                     //nomousy = true;
 
                     break;
-                //case 9: //Tab      
+                //case 9: //Tab         
                 case 32: //Space
                 case 13: //Enter
                     if (open) {
@@ -576,10 +594,10 @@
                 .filter('.ui-state-hover')
                 .removeClass('ui-state-hover');
             /*
-             this.items
-             .filter('.ui-state-nomousy')
-             .removeClass('ui-state-nomousy');
-             */
+            this.items
+            .filter('.ui-state-nomousy')
+            .removeClass('ui-state-nomousy');
+            */
             if (!open) {
                 this.expand();
             }
@@ -593,10 +611,10 @@
 
             opt.addClass('ui-state-hover');
             /*
-             if (nomousy) {
-             opt.addClass('ui-state-nomousy');
-             }
-             */
+            if (nomousy) {
+            opt.addClass('ui-state-nomousy');
+            }
+            */
             this._updScrollPosition(opt);
         },
 
@@ -633,7 +651,7 @@
 
         _onLostFocus: function (event) {
             var opt = this.items.filter('.ui-state-hover');
-            if (opt.length > 0 && opt.val() != ''/* && this.lastKeyisTab*/) {
+            if (opt.length > 0) {
                 this.selected(opt);
             }
 
@@ -641,6 +659,8 @@
         }
     });
 
+    //Adding events to the validation code.
+    //This will allow us to update the display value on validation
     if ($.validator) {
         var highlight = $.validator.defaults.highlight;
         var unhighlight = $.validator.defaults.unhighlight;
