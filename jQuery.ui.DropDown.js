@@ -285,7 +285,7 @@
 
         _addTrigger: function () {
             var btn = $('<div>', {
-                'class': 'ui-dropdown-trigger'
+                'class': 'ui-button ui-widget ui-corner-all ui-state-default'
             }).css({
                 position: 'absolute',
                 top: '3px',
@@ -294,7 +294,9 @@
                 width: '16px',
                 borderRadius: '3px'
             }).on({
-                click: $.proxy(this.toggle, this)
+                click: $.proxy(this.toggle, this),
+                mouseenter: function() { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
+                mouseleave: function() { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
             }).append(
                 $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
                     .css('margin-top', '1px')
@@ -368,7 +370,7 @@
             this.display = $('<input>', {
                 type: 'text',
                 readonly: 'readonly',
-                'class': 'ui-dropdown-display',
+                'class': 'ui-widget ui-widget-content ui-corner-all ui-dropdown-display',
                 placeholder: this.options['emptyText']
             });
 
@@ -391,7 +393,7 @@
         _addContainer: function () {
             return $('<div>', {
                 'class': 'ui-dropdown-container'
-            }); //.width(this.element.width());
+            });
         },
 
         _addDropDown: function () {
@@ -401,7 +403,7 @@
 
             return el
                 .css({
-                    width: this.container.outerWidth(),
+                    minWidth: '100%',
                     zIndex: 1000
                 });
         },
