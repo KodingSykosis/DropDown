@@ -350,6 +350,12 @@
         },
 
         _addTrigger: function () {
+            var fn = function (event) {
+                var el = $(event.delegateTarget || event.target);
+                if (!el.is('.ui-button')) return;
+                el.toggleClass('ui-state-hover');
+            };
+
             var btn = $('<div>', {
                 'class': 'ui-button ui-widget ui-corner-all ui-state-default'
             }).css({
@@ -361,8 +367,8 @@
                 borderRadius: '3px'
             }).on({
                 click: $.proxy(this.toggle, this),
-                mouseenter: function() { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
-                mouseleave: function() { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
+                mouseenter: fn, // function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
+                mouseleave: fn //function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
             }).append(
                 $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
                     .css('margin-top', '1px')
