@@ -198,7 +198,7 @@
                 this.display
                     .effect('highlight', { color: '#C6244A' }, 200);
 
-                $.debug('info', this.widgetName, 'No matches');
+                $.debug('debug', this.widgetName, 'No matches');
                 return null;
             }
 
@@ -226,7 +226,7 @@
                 .selectionEnd = currentValue.length;
 
             this.currentFilter = value;
-            $.debug('info', this.widgetName, 'filtering', this.currentFilter);
+            $.debug('debug', this.widgetName, 'filtering', this.currentFilter);
 
             return find;
         },
