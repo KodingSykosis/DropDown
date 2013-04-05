@@ -450,7 +450,8 @@
                 .on({
                     focus: $.proxy(this.expand, this),
                     blur: $.proxy(this._onLostFocus, this),
-                    keydown: $.proxy(this._onKeydown, this)
+                    keydown: $.proxy(this._onKeydown, this),
+                    keypress: $.proxy(this._onKeypress, this)
                 });
 
             return this.value.add(this.display);
@@ -648,6 +649,8 @@
 
                         return this.collapse();
                     }
+                    
+                    break;
                 case 8: //Backspace
                     if (this.currentFilter.length > 0) {
                         return this.filter(this.currentFilter.substr(0, this.currentFilter.length - 1));
@@ -656,7 +659,8 @@
                     break;
                     
                 default:
-                    return this.filter(this.currentFilter + String.fromCharCode(event.which));
+                    event.originalEvent.returnValue = true;
+                    return true;
             }
 
             this.items
@@ -676,6 +680,12 @@
 
             opt.addClass('ui-state-hover');
             this._updScrollPosition(opt);
+        },
+        
+        _onKeypress: function (event) {
+            if (event.which > 31 && event.which < 127) {
+                this.filter(this.currentFilter + String.fromCharCode(event.which));
+            }
         },
 
         _onOtherKeydown: function (event) {
