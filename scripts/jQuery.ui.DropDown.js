@@ -1,4 +1,10 @@
 ﻿(function ($) {
+    $.expr[':'].contains = $.expr.createPseudo(function (arg) {
+        return function(element) {
+            return $(element).text().toUpperCase().indexOf(arg.toUpperCase()) >= 0;
+        };
+    });
+
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -10,6 +16,7 @@
             emptyOption: '^$|^0$'
         },
         keyBlocks: [16, 9],
+        currentFilter: '',
 
         // Set up the widget
         _create: function () {
@@ -171,15 +178,74 @@
                 .filter('.ui-state-hover')
                 .removeClass('ui-state-hover');
 
-            this.items
-                .filter('.ui-state-nomousy')
-                .removeClass('ui-state-nomousy');
+            this.clearFilter();
         },
 
         toggle: function () {
             var vis = this.dropDownContainer.is(':visible');
             if (vis) this.collapse();
             else this.display.focus();
+        },
+        
+        filter: function (value) {
+            if (value.length == 0) {
+                return this.clearFilter();
+            }
+            
+            var find =
+                this.list
+                    .children(':contains(' + value + ')')
+                    .show();
+            
+            if (find.length == 0) {
+                this.display
+                    .effect('highlight', { color: '#992833' }, 200);
+
+                $.debug('info', this.widgetName, 'No matches');
+                return null;
+            }
+
+            this.list
+                .children()
+                .not(find)
+                .hide();
+
+            this.list
+                .children('.ui-state-hover')
+                .removeClass('ui-state-hover');
+
+            var currentValue = 
+            find.first()
+                .addClass('ui-state-hover')
+                .text();
+
+            this.display
+                .val(currentValue);
+
+            this.display[0]
+                .selectionStart = Math.min(value.length, currentValue.length);
+
+            this.display[0]
+                .selectionEnd = currentValue.length;
+
+            this.currentFilter = value;
+            $.debug('info', this.widgetName, 'filtering', this.currentFilter);
+
+            return find;
+        },
+        
+        clearFilter: function() {
+            this.currentFilter = '';
+            this.list
+                .children()
+                .show()
+                .removeClass('ui-state-hover');
+
+            this.display[0]
+                .selectionStart = 0;
+
+            this.display[0]
+                .selectionEnd = 0;
         },
 
         /***********************************
@@ -530,29 +596,22 @@
         _onKeydown: function (event) {
             this.lastKeyisTab = event.which == 9;
             if (this.keyBlocks.indexOf(event.which) > -1) return;
-            /*
-            if (event.which == 9) { //Allow default behavior for tab key
-            this.lastKeyisTab = true;
-            return;
-            }
-            */
+            
             event.preventDefault();
             $.debug('debug', this.widgetName, 'Keypress', event.which);
             var open = this.list.is(':visible');
             var opt = this.items.filter('.ui-state-hover');
             var max = this.items.length;
-            //var nomousy = false;
 
             if (opt.length == 0) {
                 opt = this.selected();
             }
 
-            //this.lastKeyisTab = false;
-
             switch (event.which) {
-                case 27:
-                    this.collapse();
-                    return;
+                case 127:   //DEL
+                    return this.clearFilter();
+                case 27:    //ESC
+                    return this.collapse();
 
                 case 38: //Up
                     if (opt.index() > 0 && opt.length > 0) {
@@ -560,7 +619,6 @@
                     } else {
                         opt = this.items.last();
                     }
-                    //nomousy = true;
 
                     break;
                 case 40: //Down
@@ -570,35 +628,32 @@
                         opt = this.items.first();
                     }
 
-                    //nomousy = true;
 
                     break;
-                //case 9: //Tab         
-                case 32: //Space
+                //case 32: //Space
                 case 13: //Enter
                     if (open) {
                         if (opt.length > 0 && opt.val() != '') {
                             this.selected(opt);
                         }
 
-                        this.collapse();
-                        return;
+                        return this.collapse();
                     }
-                default:
-                    opt = this.items
-                        .first();
-
+                case 8: //Backspace
+                    if (this.currentFilter.length > 0) {
+                        return this.filter(this.currentFilter.substr(0, this.currentFilter.length - 1));
+                    }
+                    
                     break;
+                    
+                default:
+                    return this.filter(this.currentFilter + String.fromCharCode(event.which));
             }
 
             this.items
                 .filter('.ui-state-hover')
                 .removeClass('ui-state-hover');
-            /*
-            this.items
-            .filter('.ui-state-nomousy')
-            .removeClass('ui-state-nomousy');
-            */
+            
             if (!open) {
                 this.expand();
             }
@@ -611,11 +666,6 @@
             }
 
             opt.addClass('ui-state-hover');
-            /*
-            if (nomousy) {
-            opt.addClass('ui-state-nomousy');
-            }
-            */
             this._updScrollPosition(opt);
         },
 
