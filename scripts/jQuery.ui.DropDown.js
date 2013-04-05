@@ -269,7 +269,7 @@
 
             if (this.otherValue) {
                 //Add the other value input's height to the overall dropdown height
-                height += this.otherValue.outerHeight() + 6;
+                height += this.otherValue.outerHeight() + 10;
             }
 
             this.dropDownContainer
@@ -314,14 +314,13 @@
 
             var node = $('<input>', {
                 type: 'text',
-                'class': 'ui-dropdown-othervalue ignore-validation',
-                'placeholder': 'Other',
-                tabindex: -1
+                tabindex: -1,
+                'class': 'ui-dropdown-othervalue ui-widget ui-widget-content ui-corner-all ui-state-default ignore-validation',
+                'placeholder': 'Other'
             });
 
             node.css({
-                width: this.dropDownContainer.width() - 4,
-                margin: '2px'
+                width: this.dropDownContainer.width() - 8
             })
                 .on({
                     keydown: $.proxy(this._onOtherKeydown, this),
