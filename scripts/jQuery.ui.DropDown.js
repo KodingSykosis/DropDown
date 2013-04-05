@@ -79,8 +79,8 @@
             this.dropDownContainer
                 .hide();
 
-            if (this.options['rules'] && $.validator)
-                this._applyValidation(this.options['rules']);
+            //Apply any validation rules to the display field
+            this._applyValidation(this.options['rules']);
         },
 
         /***********************************
@@ -105,10 +105,10 @@
             }
 
             if ($.validator) {
-                var rules = this.element.rules();
-                if (this._hasProperties(rules)) {
+                var orgRules = this.element.rules();
+                if (this._hasProperties(orgRules)) {
                     this.value
-                    .rules(this.element.rules('remove'));
+                            .rules(this.element.rules('remove'));
                 }
             }
 
@@ -265,7 +265,8 @@
                     data.push({
                         text: opt.text(),
                         value: opt.val(),
-                        selected: opt.is(':selected')
+                        selected: opt.is(':selected'),
+                        cls: opt.attr('class')
                     });
                 });
 
@@ -299,6 +300,8 @@
                                    .appendClass(item.icon)
                     );
                 }
+
+                if (item.cls) el.addClass(item.cls);
 
                 el.append(item.text);
                 el.toggleClass('ui-selected', item.selected);
@@ -387,7 +390,8 @@
             })
                 .on({
                     keydown: $.proxy(this._onOtherKeydown, this),
-                    focus: function () { $(this).addClass('ui-state-hover'); }
+                    focus: function () { $(this).addClass('ui-state-hover'); },
+                    blur: $.proxy(this._onLostFocus, this)
                 })
                 .data('menu-item', {
                     text: othr,
@@ -454,7 +458,7 @@
 
         _addContainer: function () {
             return $('<div>', {
-                'class': 'ui-dropdown-container'
+                'class': 'ui-dropdown-container noSelect'
             });
         },
 
@@ -465,7 +469,7 @@
 
             return el
                 .css({
-                    minWidth: '100%',
+                    width: '100%', //this.container.outerWidth(),
                     zIndex: 1000
                 });
         },
@@ -481,14 +485,23 @@
         },
 
         _applyValidation: function (rules) {
-            this._injectElement();
+            if (!this.element[0].form) return;
 
-            this.value
-                .on({
-                    validationerror: $.proxy(this._onValidationError, this),
-                    validationsuccess: $.proxy(this._onValidationSuccess, this)
-                })
-                .rules(rules);
+            var validator = $.data(this.element[0].form, 'validator');
+            if (!rules || !$.validator || !validator) return;
+
+            try {
+                this._injectElement();
+
+                this.value
+                    .on({
+                        validationerror: $.proxy(this._onValidationError, this),
+                        validationsuccess: $.proxy(this._onValidationSuccess, this)
+                    })
+                    .rules(rules);
+            } catch (e) {
+                $.debug('error', this.widgetName, e);
+            }
         },
 
         _hasProperties: function (object) {
@@ -697,6 +710,10 @@
         },
 
         _onLostFocus: function (event) {
+            if ($(event.relatedTarget).is(this.otherValue)) {
+                return;
+            }
+
             var opt = this.items.filter('.ui-state-hover');
             if (opt.length > 0) {
                 this.selected(opt);
