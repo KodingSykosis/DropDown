@@ -199,7 +199,7 @@
             
             if (find.length == 0) {
                 this.display
-                    .effect('highlight', { color: '#992833' }, 200);
+                    .effect('highlight', { color: '#C6244A' }, 200);
 
                 $.debug('info', this.widgetName, 'No matches');
                 return null;
