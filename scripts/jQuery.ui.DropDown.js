@@ -161,7 +161,6 @@
         },
 
         expand: function () {
-            this.lastKeyisTab = false;
             this.dropDownContainer
                 .slideDown(120, $.proxy(this._computeContainerSize, this));
 
@@ -169,8 +168,6 @@
         },
 
         collapse: function () {
-            this.lastKeyisTab = false;
-
             this.dropDownContainer
                 .slideUp(120);
 
@@ -594,7 +591,6 @@
         },
 
         _onKeydown: function (event) {
-            this.lastKeyisTab = event.which == 9;
             if (this.keyBlocks.indexOf(event.which) > -1) return;
             
             event.preventDefault();
