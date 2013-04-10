@@ -11,8 +11,12 @@
     padding: 2px 4px;
 }
 
+input[type='text'].ui-dropdown-display::-ms-clear {
+    display: none;
+}
+
 .ui-dropdown-display {
-    padding-right: 25px important;
+    padding-right: 25px !important;
 }
 
 .ui-dropdown-container-inner {

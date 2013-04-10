@@ -148,6 +148,10 @@
                         el.toggleClass('ui-selected', data.selected);
                         el.data('menu-item', data);
                     });
+                
+                if (this.list.children('.ui-selected').length > 0 && this.otherValue) {
+                    this.otherValue.val('');
+                }
 
                 this.value
                     .val(item.value || item.text);
@@ -165,6 +169,8 @@
         },
 
         expand: function () {
+            if (this.dropDownContainer.is(':visible')) return;
+
             this.dropDownContainer
                 .slideDown(120, $.proxy(this._computeContainerSize, this));
 
@@ -172,6 +178,8 @@
         },
 
         collapse: function () {
+            if (!this.dropDownContainer.is(':visible')) return;
+            
             this.dropDownContainer
                 .slideUp(120);
 
@@ -457,6 +465,7 @@
             });
 
             this.display
+                .attr('autocomplete', 'off')
                 .css({
                     width: '100%',
                     boxSizing: 'border-box',
@@ -626,7 +635,7 @@
             
             event.preventDefault();
             var open = this.list.is(':visible');
-            var opt = this.items.filter('.ui-state-hover');
+            var opt = this.items.add(this.otherValue).filter('.ui-state-hover');
             var max = this.items.length;
             var size = this.options['listSize'];
 
@@ -641,7 +650,8 @@
                     return this.collapse();
 
                 case 38: //Up
-                    if (opt.index() > 0 && opt.length > 0) {
+                    if (!opt.is('li') && open) return;
+                    if (opt.is('li') && opt.index() > 0 && opt.length > 0) {
                         opt = opt.prev();
                     } else {
                         opt = this.items.last();
@@ -649,7 +659,8 @@
 
                     break;
                 case 40: //Down
-                    if (opt.index() < max - 1 && opt.length > 0) {
+                    if (!opt.is('li') && open) return;
+                    if (opt.is('li') && opt.index() < max - 1 && opt.length > 0) {
                         opt = opt.next();
                     } else {
                         opt = this.items.first();
@@ -662,7 +673,7 @@
                         if (opt.length > 0 && opt.val() != '') {
                             this.selected(opt);
                         }
-
+                        
                         return this.collapse();
                     }
                     
@@ -683,7 +694,7 @@
                     
                 case 34: //PageDown
                     opt = this.items.eq(
-                        Math.min(opt.index() + size, max)
+                        Math.min(opt.index() + size, max - 1)
                     );
                     
                     break;
@@ -733,6 +744,13 @@
                     this._onKeyDown(event);
                     return;
             }
+
+            this.items
+                .filter('.ui-state-hover')
+                .removeClass('ui-state-hover');
+
+            this.otherValue
+                .addClass('ui-state-hover');
         },
 
         _onItemClicked: function (event) {
@@ -754,7 +772,7 @@
 
             console.log('MouseDown', this.mouseDown);
             
-            if (this.mouseDown && !el.is('li')) {
+            if ((this.mouseDown && !el.is('li')) || this.display.is(':focus')) {
                 return;
             }
             
