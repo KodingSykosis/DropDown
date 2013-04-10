@@ -1,4 +1,41 @@
 ﻿(function ($) {
+    if (!window.getComputedStyle) {
+        window.getComputedStyle = function (el, pseudo) {
+            this.el = el;
+            this.getPropertyValue = function (prop) {
+                var re = /(\-([a-z]){1})/g;
+                if (prop == 'float') prop = 'styleFloat';
+                if (re.test(prop)) {
+                    prop = prop.replace(re, function () {
+                        return arguments[2].toUpperCase();
+                    });
+                }
+                return el.currentStyle[prop] ? el.currentStyle[prop] : null;
+            };
+            return this;
+        };
+    }
+
+    if (!Array.prototype.indexOf) {
+        Array.prototype.indexOf = function (elt /*, from*/) {
+            var len = this.length >>> 0;
+
+            var from = Number(arguments[1]) || 0;
+            from = (from < 0)
+                 ? Math.ceil(from)
+                 : Math.floor(from);
+            if (from < 0)
+                from += len;
+
+            for (; from < len; from++) {
+                if (from in this &&
+                    this[from] === elt)
+                    return from;
+            }
+            return -1;
+        };
+    }
+
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -74,15 +111,15 @@
                 .notClicked($.proxy(this.collapse, this));
 
             this.container
-                .mousedown(function() {
+                .mousedown(function () {
                     self.mouseDown = true;
                 });
-            
+
             $(window)
                 .mouseup(function () {
                     self.mouseDown = false;
                 });
-            
+
 
             this.dropDownContainer
                 .hide();
@@ -148,7 +185,7 @@
                         el.toggleClass('ui-selected', data.selected);
                         el.data('menu-item', data);
                     });
-                
+
                 if (this.list.children('.ui-selected').length > 0 && this.otherValue) {
                     this.otherValue.val('');
                 }
@@ -179,7 +216,7 @@
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
-            
+
             this.dropDownContainer
                 .slideUp(120);
 
@@ -195,7 +232,7 @@
             if (vis) this.collapse();
             else this.display.focus();
         },
-        
+
         filter: function (value) {
             if (value.length == 0) {
                 return this.clearFilter();
@@ -204,14 +241,14 @@
             var pattern = this.options['filterEx'].replace('{0}', value);
             var options = this.options['filterOpt'];
             var re = new RegExp(pattern, options);
-            
+
             var find =
                 this.items
-                    .filter(function(idx) {
+                    .filter(function (idx) {
                         return re.test($(this).text());
                     })
                     .show();
-            
+
             if (find.length == 0) {
                 this.display
                     .effect('highlight', { color: '#C6244A' }, 200);
@@ -229,27 +266,27 @@
                 .children('.ui-state-hover')
                 .removeClass('ui-state-hover');
 
-            var currentValue = 
-            find.first()
+            var currentValue = find
+                .first()
                 .addClass('ui-state-hover')
                 .text();
 
             this.display
                 .val(currentValue);
 
-            this.display[0]
-                .selectionStart = Math.min(value.length, currentValue.length);
-
-            this.display[0]
-                .selectionEnd = currentValue.length;
+            this._setSelection(
+                this.display[0],
+                Math.min(value.length, currentValue.length),
+                currentValue.length
+            );
 
             this.currentFilter = value;
             this._updScrollPosition();
 
             return find;
         },
-        
-        clearFilter: function() {
+
+        clearFilter: function () {
             this.currentFilter = '';
             this.list
                 .children()
@@ -486,6 +523,9 @@
             return $('<div>', {
                 'class': 'ui-dropdown-container noSelect'
             });
+                //.on({
+                //    keydown: $.proxy(this._onKeyDown, this)
+                //});
         },
 
         _addDropDown: function () {
@@ -573,15 +613,34 @@
 
             var max = this.scroll.find('.content').height()
                 - this.scrollContainer.height();
-            
+
             var top = el.position().top
                 - (this.scrollContainer.height() / 2)
                 + (el.outerHeight() / 2);
 
             top = Math.min(Math.max(top, 0), max);
-            
+
             this.scroll
                 .tinyscrollbar_update(top);
+        },
+
+        _setSelection: function (input, start, end) {
+            input = $(input)[0];
+
+            if (input.setSelectionRange) {
+                //IE 9+
+                input.setSelectionRange(start, end);
+            } if (input.createTextRange) {
+                //IE 8
+                var range = input.createTextRange();
+                range.moveStart('character', start);
+                range.moveEnd('character', end);
+                range.select();
+            } else {
+                //The rest of the world
+                input.selectionStart = start;
+                input.selectionEnd = end;
+            }
         },
 
         /***********************************
@@ -632,12 +691,15 @@
 
         _onKeyDown: function (event) {
             if (this.keyBlocks.indexOf(event.which) > -1) return false;
-            
+
             event.preventDefault();
             var open = this.list.is(':visible');
-            var opt = this.items.add(this.otherValue).filter('.ui-state-hover');
             var max = this.items.length;
             var size = this.options['listSize'];
+            var opt = this.items
+                .add(this.otherValue)
+                .filter('.ui-state-hover:visible')
+                .first();
 
             if (opt.length == 0) {
                 opt = this.selected();
@@ -650,20 +712,24 @@
                     return this.collapse();
 
                 case 38: //Up
-                    if (!opt.is('li') && open) return;
+                    if (!opt.is('li') && open) return false;
                     if (opt.is('li') && opt.index() > 0 && opt.length > 0) {
-                        opt = opt.prev();
+                        if (open) {
+                            opt = opt.prevAll(':visible:first');
+                        }
                     } else {
-                        opt = this.items.last();
+                        opt = this.items.filter(':visible:last');
                     }
 
                     break;
                 case 40: //Down
-                    if (!opt.is('li') && open) return;
+                    if (!opt.is('li') && open) return false;
                     if (opt.is('li') && opt.index() < max - 1 && opt.length > 0) {
-                        opt = opt.next();
+                        if (open) {
+                            opt = opt.nextAll(':visible:first');
+                        }
                     } else {
-                        opt = this.items.first();
+                        opt = this.items.filter(':visible:first');
                     }
 
 
@@ -673,32 +739,32 @@
                         if (opt.length > 0 && opt.val() != '') {
                             this.selected(opt);
                         }
-                        
+
                         return this.collapse();
                     }
-                    
+
                     break;
                 case 8: //Backspace
                     if (this.currentFilter.length > 0) {
                         return this.filter(this.currentFilter.substr(0, this.currentFilter.length - 1));
                     }
-                    
+
                     break;
-                    
+
                 case 33: //PageUp
                     opt = this.items.eq(
                         Math.max(opt.index() - size, 0)
                     );
 
                     break;
-                    
+
                 case 34: //PageDown
                     opt = this.items.eq(
                         Math.min(opt.index() + size, max - 1)
                     );
-                    
+
                     break;
-                    
+
                 default:
                     event.originalEvent.returnValue = true;
                     return true;
@@ -707,22 +773,23 @@
             this.items
                 .filter('.ui-state-hover')
                 .removeClass('ui-state-hover');
-            
+
             if (!open) {
                 this.expand();
             }
 
-            if (opt.is('input')) {
-                opt.focus();
-            } else if (this.otherValue) {
-                this.display
-                    .focus();
-            }
+            //if (opt.is('input')) {
+            //    opt.focus();
+            //}
+            //else if (this.otherValue) {
+            //    this.display
+            //        .focus();
+            //}
 
             opt.addClass('ui-state-hover');
             this._updScrollPosition(opt);
         },
-        
+
         _onKeyPress: function (event) {
             if (event.which > 31 && event.which < 127) {
                 this.filter(this.currentFilter + String.fromCharCode(event.which));
@@ -770,15 +837,13 @@
         _onLostFocus: function (event) {
             var el = $(event.relatedTarget);
 
-            console.log('MouseDown', this.mouseDown);
-            
             if ((this.mouseDown && !el.is('li')) || this.display.is(':focus')) {
                 return;
             }
-            
+
             var opt = this.items
                           .filter('.ui-state-hover');
-            
+
             if (opt.length > 0) {
                 this.selected(opt);
             }
