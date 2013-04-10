@@ -1,10 +1,4 @@
 ﻿(function ($) {
-    $.expr[':'].contains = $.expr.createPseudo(function (arg) {
-        return function(element) {
-            return $(element).text().toUpperCase().indexOf(arg.toUpperCase()) >= 0;
-        };
-    });
-
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -13,7 +7,9 @@
             emptyText: 'Choose Item',
             allowEmpty: true,
             ignoreEmptyOptions: true,
-            emptyOption: '^$|^0$'
+            emptyOption: '^$|^0$',
+            filterEx: '^{0}',
+            filterOpt: 'i'
         },
         keyBlocks: [16, 9],
         currentFilter: '',
@@ -100,10 +96,6 @@
 
             this.items = $(items);
 
-            if (this.otherValue) {
-                this.items = this.items.add(this.otherValue);
-            }
-
             if ($.validator) {
                 var orgRules = this.element.rules();
                 if (this._hasProperties(orgRules)) {
@@ -188,10 +180,16 @@
             if (value.length == 0) {
                 return this.clearFilter();
             }
+
+            var pattern = this.options['filterEx'].replace('{0}', value);
+            var options = this.options['filterOpt'];
+            var re = new RegExp(pattern, options);
             
             var find =
-                this.list
-                    .children(':contains(' + value + ')')
+                this.items
+                    .filter(function(idx) {
+                        return re.test($(this).text());
+                    })
                     .show();
             
             if (find.length == 0) {
@@ -226,7 +224,7 @@
                 .selectionEnd = currentValue.length;
 
             this.currentFilter = value;
-            $.debug('debug', this.widgetName, 'filtering', this.currentFilter);
+            this._updScrollPosition();
 
             return find;
         },
@@ -361,7 +359,7 @@
             }).css({
                 position: 'absolute',
                 top: '3px',
-                right: '3px',
+                right: '2px',
                 bottom: '3px',
                 width: '16px',
                 borderRadius: '3px'
@@ -395,7 +393,7 @@
                 width: this.dropDownContainer.width() - 8
             })
                 .on({
-                    keydown: $.proxy(this._onOtherKeydown, this),
+                    keydown: $.proxy(this._onOtherKeyDown, this),
                     focus: function () { $(this).addClass('ui-state-hover'); },
                     blur: $.proxy(this._onLostFocus, this)
                 })
@@ -456,8 +454,8 @@
                 .on({
                     focus: $.proxy(this.expand, this),
                     blur: $.proxy(this._onLostFocus, this),
-                    keydown: $.proxy(this._onKeydown, this),
-                    keypress: $.proxy(this._onKeypress, this)
+                    keydown: $.proxy(this._onKeyDown, this),
+                    keypress: $.proxy(this._onKeyPress, this)
                 });
 
             return this.value.add(this.display);
@@ -547,21 +545,22 @@
             var el = node || this.selected();
             if (el.length == 0) {
                 this.scroll
-                    .tinyscrollbar_update('relative');
+                    .tinyscrollbar_update(0);
 
                 return;
             }
 
-            var max = this.scroll.find('.content').height() - this.dropDownContainer.height();
-            var top = el.position().top - (this.dropDownContainer.height() / 2)
-                - (el.height() / 2);
+            var max = this.scroll.find('.content').height()
+                - this.scrollContainer.height();
+            
+            var top = el.position().top
+                - (this.scrollContainer.height() / 2)
+                + (el.outerHeight() / 2);
 
-            top = top < 0 ? 0 : (top > max ? max : top);
-
-            if (max > this.options['maxHeight']) {
-                this.scroll
-                    .tinyscrollbar_update(top);
-            }
+            top = Math.min(Math.max(top, 0), max);
+            
+            this.scroll
+                .tinyscrollbar_update(top);
         },
 
         /***********************************
@@ -610,14 +609,14 @@
             return false;
         },
 
-        _onKeydown: function (event) {
-            if (this.keyBlocks.indexOf(event.which) > -1) return;
+        _onKeyDown: function (event) {
+            if (this.keyBlocks.indexOf(event.which) > -1) return false;
             
             event.preventDefault();
-            $.debug('debug', this.widgetName, 'Keypress', event.which);
             var open = this.list.is(':visible');
             var opt = this.items.filter('.ui-state-hover');
             var max = this.items.length;
+            var size = this.options['listSize'];
 
             if (opt.length == 0) {
                 opt = this.selected();
@@ -646,7 +645,6 @@
 
 
                     break;
-                //case 32: //Space
                 case 13: //Enter
                     if (open) {
                         if (opt.length > 0 && opt.val() != '') {
@@ -661,6 +659,20 @@
                     if (this.currentFilter.length > 0) {
                         return this.filter(this.currentFilter.substr(0, this.currentFilter.length - 1));
                     }
+                    
+                    break;
+                    
+                case 33: //PageUp
+                    opt = this.items.eq(
+                        Math.max(opt.index() - size, 0)
+                    );
+
+                    break;
+                    
+                case 34: //PageDown
+                    opt = this.items.eq(
+                        Math.min(opt.index() + size, max)
+                    );
                     
                     break;
                     
@@ -688,13 +700,13 @@
             this._updScrollPosition(opt);
         },
         
-        _onKeypress: function (event) {
+        _onKeyPress: function (event) {
             if (event.which > 31 && event.which < 127) {
                 this.filter(this.currentFilter + String.fromCharCode(event.which));
             }
         },
 
-        _onOtherKeydown: function (event) {
+        _onOtherKeyDown: function (event) {
             switch (event.which) {
                 case 13: //Enter
                 case 9:  //Tab
@@ -706,7 +718,7 @@
                 case 38: //Up
                 case 40: //Down
                     event.preventDefault();
-                    this._onKeydown(event);
+                    this._onKeyDown(event);
                     return;
             }
         },
@@ -726,7 +738,8 @@
         },
 
         _onLostFocus: function (event) {
-            if ($(event.relatedTarget).is(this.otherValue)) {
+            var el = $(event.relatedTarget);
+            if (el.parents('.ui-dropdown-container').length > 0 && !el.is('li')) {
                 return;
             }
 
