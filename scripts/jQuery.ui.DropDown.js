@@ -16,6 +16,7 @@
 
         // Set up the widget
         _create: function () {
+            var self = this;
             this.wrap = $('<div>');
 
             this.element
@@ -71,6 +72,17 @@
 
             this.container
                 .notClicked($.proxy(this.collapse, this));
+
+            this.container
+                .mousedown(function() {
+                    self.mouseDown = true;
+                });
+            
+            $(window)
+                .mouseup(function () {
+                    self.mouseDown = false;
+                });
+            
 
             this.dropDownContainer
                 .hide();
@@ -739,11 +751,16 @@
 
         _onLostFocus: function (event) {
             var el = $(event.relatedTarget);
-            if (el.parents('.ui-dropdown-container').length > 0 && !el.is('li')) {
+
+            console.log('MouseDown', this.mouseDown);
+            
+            if (this.mouseDown && !el.is('li')) {
                 return;
             }
-
-            var opt = this.items.filter('.ui-state-hover');
+            
+            var opt = this.items
+                          .filter('.ui-state-hover');
+            
             if (opt.length > 0) {
                 this.selected(opt);
             }
