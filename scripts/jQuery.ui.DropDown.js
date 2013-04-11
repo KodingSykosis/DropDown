@@ -519,7 +519,6 @@
                 .on({
                     focus: $.proxy(this.expand, this),
                     blur: $.proxy(this._onLostFocus, this),
-                    keydown: $.proxy(this._onKeyDown, this),
                     keypress: $.proxy(this._onKeyPress, this)
                 });
 
@@ -527,9 +526,15 @@
         },
 
         _addContainer: function () {
-            return $('<div>', {
+            var container = $('<div>', {
                 'class': 'ui-dropdown-container noSelect'
             });
+
+            container.on({
+                keydown: $.proxy(this._onKeyDown, this)
+            });
+
+            return container;
         },
 
         _addDropDown: function () {
@@ -617,7 +622,7 @@
                 - (this.scrollContainer.height() / 2)
                 + (el.outerHeight() / 2);
 
-            top = Math.min(Math.max(top, 0), max);
+            top = Math.min(Math.max(top, 0), Math.abs(max));
 
             this.scroll
                 .tinyscrollbar_update(top);
