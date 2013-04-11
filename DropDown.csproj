@@ -14,7 +14,7 @@
     <RootNamespace>DropDown</RootNamespace>
     <AssemblyName>DropDown</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <UseIISExpress>false</UseIISExpress>
+    <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
     <IISExpressAnonymousAuthentication />
     <IISExpressWindowsAuthentication />
@@ -75,7 +75,7 @@
           <AutoAssignPort>True</AutoAssignPort>
           <DevelopmentServerPort>29698</DevelopmentServerPort>
           <DevelopmentServerVPath>/</DevelopmentServerVPath>
-          <IISUrl>http://localhost/DropDown</IISUrl>
+          <IISUrl>http://localhost:29698/</IISUrl>
           <NTLMAuthentication>False</NTLMAuthentication>
           <UseCustomServer>False</UseCustomServer>
           <CustomServerUrl>

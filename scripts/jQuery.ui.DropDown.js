@@ -1,4 +1,5 @@
 ﻿(function ($) {
+    //Old IE Hacks
     if (!window.getComputedStyle) {
         window.getComputedStyle = function (el, pseudo) {
             this.el = el;
@@ -48,13 +49,14 @@
             filterEx: '^{0}',
             filterOpt: 'i'
         },
-        keyBlocks: [16, 9],
+        keyTraps: [127,27,38,40,13,8,33,34],
         currentFilter: '',
 
         // Set up the widget
         _create: function () {
             var self = this;
             this.wrap = $('<div>');
+            this.name = this.element.attr('name');
 
             this.element
                 .addClass('ui-dropdown-source');
@@ -77,11 +79,19 @@
                 });
 
             this.element.wrap(this.wrap);
+            this.wrap = this.element.parent();
 
             //We are assuming the widget is instantiated on a select node
             //Wrap the element in a div or set it to display none?
             this.container = this._addContainer()
                 .append(this._addInputs());
+            
+            //Insert the value field after the original
+            //dropdown field.  This will allow validation
+            //to operator without messing with the new
+            //dropdown layout
+            this.wrap
+                .after(this.value);
 
             //Swap the select element out for our dropdown
             this.element
@@ -90,7 +100,7 @@
 
             this.dropDownContainer = this._addDropDown()
                 .appendTo(this.container);
-
+            
             this.list = this._addList();
             this.scrollContainer = this._addScrollbar(this.list);
             this.otherValue = this._addOtherValue();
@@ -123,9 +133,6 @@
 
             this.dropDownContainer
                 .hide();
-
-            //Apply any validation rules to the display field
-            this._applyValidation(this.options['rules']);
         },
 
         /***********************************
@@ -145,12 +152,12 @@
 
             this.items = $(items);
 
-            if ($.validator) {
-                var orgRules = this.element.rules();
-                if (this._hasProperties(orgRules)) {
-                    this.value
-                            .rules(this.element.rules('remove'));
-                }
+            var validator = this._getFormValidator();
+            if (validator) {
+                var rules = $.extend({}, this.element.rules(), this.options['rules']);
+                if (!this._hasProperties(rules)) rules = null;
+                //Apply any validation rules to the display field
+                this._applyValidation(rules);
             }
 
             this._computeContainerSize();
@@ -485,7 +492,7 @@
         _addInputs: function () {
             this.value = $('<input>', {
                 type: 'hidden',
-                name: this.element.attr('name'),
+                name: this.name,
                 'class': 'ui-dropdown-value'
             });
 
@@ -516,16 +523,13 @@
                     keypress: $.proxy(this._onKeyPress, this)
                 });
 
-            return this.value.add(this.display);
+            return this.display;
         },
 
         _addContainer: function () {
             return $('<div>', {
                 'class': 'ui-dropdown-container noSelect'
             });
-                //.on({
-                //    keydown: $.proxy(this._onKeyDown, this)
-                //});
         },
 
         _addDropDown: function () {
@@ -551,20 +555,16 @@
         },
 
         _applyValidation: function (rules) {
-            if (!this.element[0].form) return;
-
-            var validator = $.data(this.element[0].form, 'validator');
-            if (!rules || !$.validator || !validator) return;
+            var validator = this._getFormValidator();
+            if (!validator) return;
 
             try {
                 this._injectElement();
-
-                this.value
-                    .on({
-                        validationerror: $.proxy(this._onValidationError, this),
-                        validationsuccess: $.proxy(this._onValidationSuccess, this)
-                    })
-                    .rules(rules);
+                
+                if (rules) {
+                    this.value
+                        .rules(rules);
+                }
             } catch (e) {
                 $.debug('error', this.widgetName, e);
             }
@@ -581,27 +581,26 @@
         },
 
         _getFormValidator: function () {
-            return this.element
-                .parents('form')
-                .first()
+            return $(this.element[0].form)
                 .data('validator');
         },
 
         _injectElement: function () {
             var validator = this._getFormValidator();
-            var builder = validator.elements;
-            var matches = builder.call(validator);
+            var elementsSuper = $.validator.prototype.elements;
+            var matches = elementsSuper.call(validator);
             var myElement = this.value;
 
             if (!matches.is(myElement)) {
                 //Inject our element
-                validator.elements = function () {
-                    var results = builder.call(validator).add(myElement);
+                $.validator.prototype.elements = function () {
+                    var results = elementsSuper.call(validator).add(myElement);
+                    console.log('Validator Elements', results);
                     return results;
                 };
             }
         },
-
+        
         _updScrollPosition: function (node) {
             var el = node || this.selected();
             if (el.length == 0) {
@@ -667,30 +666,8 @@
             this.collapse();
         },
 
-        _onValidationError: function (event, data) {
-            var $el = $(event.target);
-
-            if ($el.is(this.value)) {
-                $el = this.display;
-            }
-
-            $el.addClass(data.errorClass).removeClass(data.validClass);
-            return false;
-        },
-
-        _onValidationSuccess: function (event, data) {
-            var $el = $(event.target);
-
-            if ($el.is(this.value)) {
-                $el = this.display;
-            }
-
-            $el.addClass(data.validClass).removeClass(data.errorClass);
-            return false;
-        },
-
         _onKeyDown: function (event) {
-            if (this.keyBlocks.indexOf(event.which) > -1) return false;
+            if (this.keyTraps.indexOf(event.which) == -1) return true;
 
             event.preventDefault();
             var open = this.list.is(':visible');
@@ -764,10 +741,6 @@
                     );
 
                     break;
-
-                default:
-                    event.originalEvent.returnValue = true;
-                    return true;
             }
 
             this.items
@@ -777,14 +750,6 @@
             if (!open) {
                 this.expand();
             }
-
-            //if (opt.is('input')) {
-            //    opt.focus();
-            //}
-            //else if (this.otherValue) {
-            //    this.display
-            //        .focus();
-            //}
 
             opt.addClass('ui-state-hover');
             this._updScrollPosition(opt);
@@ -851,27 +816,4 @@
             this.collapse();
         }
     });
-
-    //Adding events to the validation code.
-    //This will allow us to update the display value on validation
-    if ($.validator) {
-        var highlight = $.validator.defaults.highlight;
-        var unhighlight = $.validator.defaults.unhighlight;
-
-        $.extend(true, $.validator.defaults, {
-            ignore: $.validator.defaults.ignore + ',.ignore-validation',
-            highlight: function (element, errorClass, validClass) {
-                var data = { errorClass: errorClass, validClass: validClass };
-                if ($(element).trigger('validationerror', data) != false) {
-                    highlight(element, errorClass, validClass);
-                }
-            },
-            unhighlight: function (element, errorClass, validClass) {
-                var data = { errorClass: errorClass, validClass: validClass };
-                if ($(element).trigger('validationsuccess', data) != false) {
-                    unhighlight(element, errorClass, validClass);
-                }
-            }
-        });
-    }
 })(jQuery);
