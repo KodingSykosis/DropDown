@@ -49,7 +49,7 @@
             filterEx: '^{0}',
             filterOpt: 'i'
         },
-        keyTraps: [127,27,38,40,13,8,33,34],
+        keyTraps: [127, 27, 38, 40, 13, 8, 33, 34],
         currentFilter: '',
 
         // Set up the widget
@@ -85,7 +85,7 @@
             //Wrap the element in a div or set it to display none?
             this.container = this._addContainer()
                 .append(this._addInputs());
-            
+
             //Insert the value field after the original
             //dropdown field.  This will allow validation
             //to operator without messing with the new
@@ -100,7 +100,7 @@
 
             this.dropDownContainer = this._addDropDown()
                 .appendTo(this.container);
-            
+
             this.list = this._addList();
             this.scrollContainer = this._addScrollbar(this.list);
             this.otherValue = this._addOtherValue();
@@ -419,21 +419,21 @@
             };
 
             var btn = $('<div>', {
-                'class': 'ui-button ui-widget ui-corner-all ui-state-default'
-            }).css({
-                position: 'absolute',
-                top: '3px',
-                right: '2px',
-                bottom: '3px',
-                width: '16px',
-                borderRadius: '3px'
+                'class': 'ui-button ui-widget ui-corner-all ui-state-default ui-dropdown-trigger'
+                //}).css({
+                //    position: 'absolute',
+                //    top: '3px',
+                //    right: '2px',
+                //    bottom: '3px',
+                //    width: '16px',
+                //    borderRadius: '3px'
             }).on({
                 click: $.proxy(this.toggle, this),
                 mouseenter: fn, // function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
                 mouseleave: fn //function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
             }).append(
                 $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
-                    .css('margin-top', '1px')
+                    //.css('margin-top', '1px')
             );
 
             return btn;
@@ -498,13 +498,14 @@
 
             this.value
                 .on({
-                    change: $.proxy(this._onValueChanged, this)
+                    change: $.proxy(this._onValueChanged, this),
+                    validationrules: $.proxy(this._onValidationRules, this)
                 });
 
             this.display = $('<input>', {
                 type: 'text',
                 readonly: 'readonly',
-                'class': 'ui-widget ui-widget-content ui-corner-all ui-dropdown-display',
+                'class': 'ui-widget ui-widget-content ui-corner-all ui-dropdown-display ignore-validation',
                 placeholder: this.options['emptyText']
             });
 
@@ -565,9 +566,18 @@
 
             try {
                 this._injectElement();
-                
+                this.display
+                    .rules('remove');
+                this.display
+                    .rules({ required: false });
+
+
                 if (rules) {
                     this.value
+                        .on({
+                            validationerror: $.proxy(this._onValidationError, this),
+                            validationsuccess: $.proxy(this._onValidationSuccess, this)
+                        })
                         .rules(rules);
                 }
             } catch (e) {
@@ -595,17 +605,24 @@
             var elementsSuper = $.validator.prototype.elements;
             var matches = elementsSuper.call(validator);
             var myElement = this.value;
+            var display = this.display;
 
             if (!matches.is(myElement)) {
                 //Inject our element
                 $.validator.prototype.elements = function () {
-                    var results = elementsSuper.call(validator).add(myElement);
-                    console.log('Validator Elements', results);
+                    var results = elementsSuper
+                        .call(validator)
+                        .not(display);
+                    
+                    if (display.is(':visible')) {
+                        return results.add(myElement);
+                    }
+                    
                     return results;
                 };
             }
         },
-        
+
         _updScrollPosition: function (node) {
             var el = node || this.selected();
             if (el.length == 0) {
@@ -819,6 +836,60 @@
             }
 
             this.collapse();
+        },
+
+        _onValidationError: function (event, data) {
+            var isError = this.value.is('.' + data.errorClass);
+            this.display
+                .toggleClass(data.errorClass, isError)
+                .toggleClass(data.validClass, !isError);
+            
+            return false;
+        },
+
+        _onValidationSuccess: function (event, data) {
+            var isError = this.value.is('.' + data.errorClass);
+            this.display
+                .toggleClass(data.errorClass, isError)
+                .toggleClass(data.validClass, !isError);
+            
+            return false;
+        },
+        
+        _onValidationRules: function (event, data) {
+            if (data.command == 'add' || data.command == 'remove') {
+                this._applyValidation();
+            }
         }
     });
+
+    //Adding events to the validation code.
+    //This will allow us to update the display value on validation
+    if ($.validator) {
+        var highlight = $.validator.defaults.highlight;
+        var unhighlight = $.validator.defaults.unhighlight;
+
+        $.extend(true, $.validator.defaults, {
+            ignore: $.validator.defaults.ignore + ',.ignore-validation',
+            highlight: function (element, errorClass, validClass) {
+                highlight(element, errorClass, validClass);
+                var data = { errorClass: errorClass, validClass: validClass };
+                $(element).trigger('validationerror', data);
+            },
+            unhighlight: function (element, errorClass, validClass) {
+                unhighlight(element, errorClass, validClass);
+                var data = { errorClass: errorClass, validClass: validClass };
+                $(element).trigger('validationsuccess', data);
+            }
+        });
+        
+        if ($.fn.rules) {
+            var orgRules = $.fn.rules;
+            $.fn.rules = function (command, argument) {
+                var ret = orgRules.call(this, command, argument);
+                this.trigger('validationrules', { command: command, argument: argument });
+                return ret;
+            };
+        }
+    }
 })(jQuery);
