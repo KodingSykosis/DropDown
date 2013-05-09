@@ -1,4 +1,16 @@
-﻿(function ($) {
+﻿/***
+ *      Author: KodingSykosis
+ *        Date: 04/01/2013
+ *     Version: 1.0
+ *     License: GPL v3 (see License.txt or http://www.gnu.org/licenses/)
+ * Description: This widget extends and styles the browser's drop down control
+ *
+ *        Name: kodingsykosis.DropDown
+ *
+ *    Requires: jQueryUI 1.8.2 or better
+ ***/
+
+(function ($) {
     //Old IE Hacks
     if (!window.getComputedStyle) {
         window.getComputedStyle = function (el, pseudo) {
@@ -47,7 +59,9 @@
             ignoreEmptyOptions: true,
             emptyOption: '^$|^0$',
             filterEx: '^{0}',
-            filterOpt: 'i'
+            filterOpt: 'i',
+            duration: 120,
+            viewPort: window
         },
         keyTraps: [127, 27, 38, 40, 13, 8, 33, 34],
         currentFilter: '',
@@ -214,18 +228,24 @@
 
         expand: function () {
             if (this.dropDownContainer.is(':visible')) return;
-
+            var conf = this._computeViewPortConstraints();
+            
             this.dropDownContainer
-                .slideDown(120, $.proxy(this._computeContainerSize, this));
+                .css(conf.css)
+                .show('slide', { direction: conf.direction }, conf.duration)
+                .promise()
+                .always($.proxy(this._computeContainerSize, this));
 
             this._updScrollPosition();
         },
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
+            var conf = this._computeViewPortConstraints();
 
             this.dropDownContainer
-                .slideUp(120);
+                .css(conf.css)
+                .hide('slide', { direction: conf.direction }, conf.duration);
 
             this.items
                 .filter('.ui-state-hover')
@@ -400,8 +420,14 @@
                 height += this.otherValue.outerHeight() + 10;
             }
 
-            this.dropDownContainer
-                .height(height);
+            if (this.viewPortSpace > (height + this.display.height())) {
+                this.dropDownContainer
+                    .height(height);
+            } else {
+                this.dropDownContainer
+                    .height(this.viewPortSpace);
+            }
+            
 
             this.scroll
                 .find('.scrollbar')
@@ -409,6 +435,41 @@
 
             this.scroll
                 .tinyscrollbar_update('relative');
+
+            this.height = height;
+        },
+        
+        _computeViewPortConstraints: function() {
+            var slide = ['up', 'down'],
+                vwBox = this._getViewPortBox(),
+                offset = this.display.offset(),
+                height = this.display.outerHeight(),
+                space = vwBox.height - height - (offset.top - vwBox.scrollTop),
+                slideIndex = space > ( this.height - (this.height/3) ) ? 0 : 1,
+                ddTop = [height, -this.height];
+
+            this.viewPortSpace = space;
+            
+            return {
+                direction: slide[slideIndex],
+                duration: this.options['duration'],
+                css: {
+                    top: ddTop[slideIndex]
+                }
+            };
+        },
+        
+        _getViewPortBox: function() {
+            var viewPort = $(this.options['viewPort']),
+                height = viewPort.height() || 0,
+                width = viewPort.width() || 0;
+
+            return {
+                scrollTop: viewPort.scrollTop(),
+                scrollLeft: viewPort.scrollLeft(),
+                width: width,
+                height: height
+            };
         },
 
         _addTrigger: function () {

@@ -52,6 +52,7 @@
     <Content Include="Index.html" />
     <Content Include=".gitignore" />
     <Content Include="css\jQuery.ui.DropDown.css" />
+    <Content Include="License.txt" />
     <Content Include="Scripts\ExampleApp.js" />
     <Content Include="Scripts\jQuery.ui.DropDown.js" />
   </ItemGroup>
