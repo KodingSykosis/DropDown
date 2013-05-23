@@ -2,6 +2,7 @@
     $(function() {
         $('#mainform').validate({
             rules: {
+                AcctType: 'required',
                 UserName: 'required',
                 Password: 'required',
                 PasswordConfirm: {
@@ -28,6 +29,11 @@
 
         $('.dropdown').DropDown({
             allowEmpty: true
+        });
+
+        $('.other-dropdown').DropDown({
+            allowEmpty: true,
+            other: true
         });
     });
 })(jQuery);

@@ -228,24 +228,18 @@
 
         expand: function () {
             if (this.dropDownContainer.is(':visible')) return;
-            var conf = this._computeViewPortConstraints();
-            
+
             this.dropDownContainer
-                .css(conf.css)
-                .show('slide', { direction: conf.direction }, conf.duration)
-                .promise()
-                .always($.proxy(this._computeContainerSize, this));
+                .slideDown(120, $.proxy(this._computeContainerSize, this));
 
             this._updScrollPosition();
         },
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
-            var conf = this._computeViewPortConstraints();
 
             this.dropDownContainer
-                .css(conf.css)
-                .hide('slide', { direction: conf.direction }, conf.duration);
+                .slideUp(120);
 
             this.items
                 .filter('.ui-state-hover')
@@ -420,14 +414,8 @@
                 height += this.otherValue.outerHeight() + 10;
             }
 
-            if (this.viewPortSpace > (height + this.display.height())) {
-                this.dropDownContainer
-                    .height(height);
-            } else {
-                this.dropDownContainer
-                    .height(this.viewPortSpace);
-            }
-            
+            this.dropDownContainer
+                .height(height);
 
             this.scroll
                 .find('.scrollbar')
@@ -435,41 +423,6 @@
 
             this.scroll
                 .tinyscrollbar_update('relative');
-
-            this.height = height;
-        },
-        
-        _computeViewPortConstraints: function() {
-            var slide = ['up', 'down'],
-                vwBox = this._getViewPortBox(),
-                offset = this.display.offset(),
-                height = this.display.outerHeight(),
-                space = vwBox.height - height - (offset.top - vwBox.scrollTop),
-                slideIndex = space > ( this.height - (this.height/3) ) ? 0 : 1,
-                ddTop = [height, -this.height];
-
-            this.viewPortSpace = space;
-            
-            return {
-                direction: slide[slideIndex],
-                duration: this.options['duration'],
-                css: {
-                    top: ddTop[slideIndex]
-                }
-            };
-        },
-        
-        _getViewPortBox: function() {
-            var viewPort = $(this.options['viewPort']),
-                height = viewPort.height() || 0,
-                width = viewPort.width() || 0;
-
-            return {
-                scrollTop: viewPort.scrollTop(),
-                scrollLeft: viewPort.scrollLeft(),
-                width: width,
-                height: height
-            };
         },
 
         _addTrigger: function () {
@@ -514,10 +467,10 @@
                 'placeholder': 'Other'
             });
 
-            node.css({
-                width: this.dropDownContainer.width() - 8
-            })
-                .on({
+            //node.css({
+            //    width: this.dropDownContainer.width() - 8
+            //})
+            node.on({
                     keydown: $.proxy(this._onOtherKeyDown, this),
                     focus: function () { $(this).addClass('ui-state-hover'); },
                     blur: $.proxy(this._onLostFocus, this)
@@ -673,12 +626,13 @@
                 $.validator.prototype.elements = function () {
                     var results = elementsSuper
                         .call(validator)
+                        .add(myElement)
                         .not(display);
                     
-                    if (display.is(':visible')) {
-                        return results.add(myElement);
+                    if (!display.is(':visible')) {
+                        results = results.not(myElement);
                     }
-                    
+
                     return results;
                 };
             }
@@ -751,6 +705,10 @@
 
         _onKeyDown: function (event) {
             if (this.keyTraps.indexOf(event.which) == -1) return true;
+            if (this.otherValue &&
+                this.otherValue.is(event.target) &&
+                event.which != 13 &&
+                event.which != 27) return true;
 
             event.preventDefault();
             var open = this.list.is(':visible');
@@ -945,9 +903,15 @@
         });
         
         if ($.fn.rules) {
-            var orgRules = $.fn.rules;
+            var rules = $.fn.rules;
             $.fn.rules = function (command, argument) {
-                var ret = orgRules.call(this, command, argument);
+                var ret = {};
+
+                try {
+                    ret = rules.call(this, command, argument);
+                } catch(e) {
+                }
+
                 this.trigger('validationrules', { command: command, argument: argument });
                 return ret;
             };
