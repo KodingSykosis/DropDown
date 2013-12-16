@@ -1,4 +1,6 @@
-﻿#dropdown {
+/*csslint box-sizing:false,ids:false*/
+
+#dropdown {
     width: 225px;
 }
 
@@ -7,11 +9,15 @@ fieldset {
     margin: 20px auto;
     padding: 10px;
     zoom: 1;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    box-sizing:border-box;
+    overflow:hidden;
 }
 
 .form-field {
     width: 95%;
-    margin: 10px 0px;
+    margin: 10px 0;
 }
 
 .form-field input,
@@ -34,6 +40,6 @@ button {
     float: right;
 }
 
-label.error {
+.error {
     color: red;
 }

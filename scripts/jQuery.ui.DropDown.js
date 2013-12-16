@@ -1,14 +1,19 @@
-﻿/***
+/*jslint sub:true,laxbreak:true*/
+/*globals window,jQuery*/
+/***
  *      Author: KodingSykosis
  *        Date: 04/01/2013
- *     Version: 1.0
+ *     Version: 1.1.0
  *     License: GPL v3 (see License.txt or http://www.gnu.org/licenses/)
  * Description: This widget extends and styles the browser's drop down control
  *
  *        Name: kodingsykosis.DropDown
  *
  *    Requires: jQueryUI 1.8.2 or better
+ *              jQuery.Utils
  ***/
+
+//FixMe: Include dependancies
 
 (function ($) {
     //Old IE Hacks
@@ -113,7 +118,7 @@
                 .before(this.container);
 
             this.dropDownContainer = this._addDropDown()
-                .appendTo(this.container);
+                .appendTo('body');
 
             this.list = this._addList();
             this.scrollContainer = this._addScrollbar(this.list);
@@ -142,6 +147,9 @@
             $(window)
                 .mouseup(function () {
                     self.mouseDown = false;
+                })
+                .resize(function() {
+                    self.collapse();
                 });
 
 
@@ -192,7 +200,7 @@
 
                 if (item.length > 0) {
                     item = item.data('menu-item');
-                } else if (item.length == 0) {
+                } else if (item.length === 0) {
                     item = { value: '' };
                 }
 
@@ -214,7 +222,7 @@
                 this.value
                     .val(item.value || item.text);
 
-                var empty = this.value.val() == '';
+                var empty = this.value.val() === '';
 
                 this.display
                     .val(empty ? this.options['emptyText'] : item.text)
@@ -228,18 +236,30 @@
 
         expand: function () {
             if (this.dropDownContainer.is(':visible')) return;
+            var inverted = this._position(this.dropDownContainer);
 
             this.dropDownContainer
-                .slideDown(120, $.proxy(this._computeContainerSize, this));
+                .toggleClass('ui-dropdown-inverted', inverted)
+                .show({
+                    effect: 'slide',
+                    direction: inverted ? 'down' : 'up',
+                    duration: this.options['duration']
+                });
 
             this._updScrollPosition();
         },
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
+            var inverted = this._isInverted();
 
             this.dropDownContainer
-                .slideUp(120);
+                .toggleClass('ui-dropdown-inverted', inverted)
+                .hide({
+                    effect: 'slide',
+                    direction: inverted ? 'down' : 'up',
+                    duration: this.options['duration']
+                });
 
             this.items
                 .filter('.ui-state-hover')
@@ -255,7 +275,7 @@
         },
 
         filter: function (value) {
-            if (value.length == 0) {
+            if (value.length === 0) {
                 return this.clearFilter();
             }
 
@@ -270,7 +290,7 @@
                     })
                     .show();
 
-            if (find.length == 0) {
+            if (find.length === 0) {
                 this.display
                     .effect('highlight', { color: '#C6244A' }, 200);
 
@@ -324,6 +344,39 @@
         /***********************************
         **     Helpers
         ***********************************/
+
+        _position: function(elem) {
+            elem.css({
+                    visibility: 'hidden',
+                    display: 'block',
+                    width: this.container.width()
+                });
+
+            this._computeContainerSize();
+
+            elem.position({
+                my: 'left top',
+                at: 'left bottom',
+                of: this.container,
+                collision: 'none flipfit',
+                within: this.options['viewPort']
+            });
+
+            var inverted = this._isInverted();
+
+            elem.css({
+                    display: 'none',
+                    visibility: ''
+                });
+
+            return inverted;
+        },
+
+        _isInverted: function() {
+            var pos = this.dropDownContainer.position();
+            var offset = this.container.offset();
+            return offset.top - pos.top > 0;
+        },
 
         _consumeSelect: function (el) {
             var data = [],
@@ -401,25 +454,18 @@
                     .children()
                     .totalHeight(true, listSize);
 
-            //Add the UL list margins & paddings
-            height += this.list.outerHeight() -
-                this.list.children().totalHeight(true);
-
             //Adjust the scroll container's height
             this.scrollContainer
                 .height(height);
 
             if (this.otherValue) {
                 //Add the other value input's height to the overall dropdown height
+                //FixMe: remove magic number
                 height += this.otherValue.outerHeight() + 10;
             }
 
             this.dropDownContainer
                 .height(height);
-
-            this.scroll
-                .find('.scrollbar')
-                .width(10);
 
             this.scroll
                 .tinyscrollbar_update('relative');
@@ -432,25 +478,15 @@
                 el.toggleClass('ui-state-hover');
             };
 
-            var btn = $('<div>', {
-                'class': 'ui-button ui-widget ui-corner-all ui-state-default ui-dropdown-trigger'
-                //}).css({
-                //    position: 'absolute',
-                //    top: '3px',
-                //    right: '2px',
-                //    bottom: '3px',
-                //    width: '16px',
-                //    borderRadius: '3px'
-            }).on({
-                click: $.proxy(this.toggle, this),
-                mouseenter: fn, // function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
-                mouseleave: fn //function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
-            }).append(
-                $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
-                    //.css('margin-top', '1px')
-            );
-
-            return btn;
+            return $('<div>', {
+                'class': 'ui-button ui-widget ui-state-default ui-dropdown-trigger',
+                on: {
+                    click: $.proxy(this.toggle, this),
+                    mouseenter: fn,
+                    mouseleave: fn
+                },
+                append: [$('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })]
+            });
         },
 
         _addOtherValue: function () {
@@ -463,19 +499,16 @@
             var node = $('<input>', {
                 type: 'text',
                 tabindex: -1,
-                'class': 'ui-dropdown-othervalue ui-widget ui-widget-content ui-corner-all ui-state-default ignore-validation',
-                'placeholder': 'Other'
-            });
-
-            //node.css({
-            //    width: this.dropDownContainer.width() - 8
-            //})
-            node.on({
+                'class': 'ui-dropdown-othervalue ui-widget ui-widget-content ui-state-default ignore-validation',
+                'placeholder': 'Other',
+                on: {
                     keydown: $.proxy(this._onOtherKeyDown, this),
                     focus: function () { $(this).addClass('ui-state-hover'); },
                     blur: $.proxy(this._onLostFocus, this)
-                })
-                .data('menu-item', {
+                }
+            });
+
+            node.data('menu-item', {
                     text: othr,
                     value: othr,
                     selected: true
@@ -490,17 +523,15 @@
         },
 
         _addScrollbar: function (children) {
-            return $('<div>')
-                .css({
+            return $('<div>', {
+                css: {
                     position: 'relative',
                     width: '100%',
                     padding: '2px',
                     boxSizing: 'border-box'
-                })
-                .append(
-                    this.scroll = $('<div>', { 'class': 'tinyscrollbar' }).append(children)
-                )
-                .appendTo(this.dropDownContainer);
+                },
+                append: [this.scroll = $('<div>', { 'class': 'tinyscrollbar' }).append(children)]
+            }).appendTo(this.dropDownContainer);
         },
 
         _addInputs: function () {
@@ -519,7 +550,7 @@
             this.display = $('<input>', {
                 type: 'text',
                 readonly: 'readonly',
-                'class': 'ui-widget ui-widget-content ui-corner-all ui-dropdown-display ignore-validation',
+                'class': 'ui-widget ui-widget-content ui-dropdown-display ignore-validation',
                 placeholder: this.options['emptyText']
             });
 
@@ -628,7 +659,7 @@
                         .call(validator)
                         .add(myElement)
                         .not(display);
-                    
+
                     if (!display.is(':visible')) {
                         results = results.not(myElement);
                     }
@@ -640,7 +671,7 @@
 
         _updScrollPosition: function (node) {
             var el = node || this.selected();
-            if (el.length == 0) {
+            if (el.length === 0) {
                 this.scroll
                     .tinyscrollbar_update(0);
 
@@ -687,14 +718,14 @@
             var val = this.value.val();
             var selected = this.list.find('li[value="' + val + '"]');
 
-            if (selected.length == 0 && this.otherValue) {
+            if (selected.length === 0 && this.otherValue) {
                 selected = this.otherValue;
                 this.otherValue.val(val);
                 var tmp = selected.data('menu-item');
                 tmp.text = val;
             }
 
-            if (selected.length == 0) {
+            if (selected.length === 0) {
                 return;
             }
 
@@ -719,7 +750,7 @@
                 .filter('.ui-state-hover:visible')
                 .first();
 
-            if (opt.length == 0) {
+            if (opt.length === 0) {
                 opt = this.selected();
             }
 
@@ -754,7 +785,7 @@
                     break;
                 case 13: //Enter
                     if (open) {
-                        if (opt.length > 0 && opt.val() != '') {
+                        if (opt.length > 0 && opt.val() !== '') {
                             this.selected(opt);
                         }
 
@@ -810,6 +841,7 @@
                     var data = this.otherValue.data('menu-item');
                     data.text = this.otherValue.val();
                     this.otherValue.data('menu-item', data);
+                    break;
 
                 case 38: //Up
                 case 40: //Down
@@ -862,7 +894,7 @@
             this.display
                 .toggleClass(data.errorClass, isError)
                 .toggleClass(data.validClass, !isError);
-            
+
             return false;
         },
 
@@ -871,10 +903,10 @@
             this.display
                 .toggleClass(data.errorClass, isError)
                 .toggleClass(data.validClass, !isError);
-            
+
             return false;
         },
-        
+
         _onValidationRules: function (event, data) {
             if (data.command == 'add' || data.command == 'remove') {
                 this._applyValidation();
@@ -901,7 +933,7 @@
                 $(element).trigger('validationsuccess', data);
             }
         });
-        
+
         if ($.fn.rules) {
             var rules = $.fn.rules;
             $.fn.rules = function (command, argument) {
