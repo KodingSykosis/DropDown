@@ -21,6 +21,7 @@ input[type='text'].ui-dropdown-display::-ms-clear {
     box-sizing: border-box;
     overflow: hidden;
     margin:0;
+    z-index: 100;
 }
 
 .ui-dropdown-inverted {
