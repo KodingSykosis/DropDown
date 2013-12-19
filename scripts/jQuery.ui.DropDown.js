@@ -12,8 +12,6 @@
  *    Requires: jQueryUI 1.8.2 or better
  ***/
 
-//FixMe: Include dependancies
-
 (function ($) {
     //Old IE Hacks
     if (!window.getComputedStyle) {
@@ -107,6 +105,20 @@
         });
     };
 
+    //FixMe: http://bugs.jqueryui.com/ticket/8932
+    var orgHeight = $.fn.height;
+    $.fn.height = function (height) {
+        if (!height || this.css('box-sizing') !== 'border-box') {
+            return orgHeight.apply(this, arguments);
+        }
+
+        var paddingTop = this.css('padding-top'),
+            paddingBottom = this.css('padding-bottom'),
+            paddingVert = parseFloat(paddingTop || 0) + parseFloat(paddingBottom || 0);
+
+        return orgHeight.call(this, height - paddingVert);
+    };
+
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -187,7 +199,8 @@
             //Initiate the scrollbar
             this.scroll
                 .tinyscrollbar({
-                    contentPadding: 0
+                    contentPadding: 0,
+                    scrollPadding: 0
                 });
 
             this.trigger = this._addTrigger()
@@ -200,7 +213,7 @@
             this.refresh();
 
             this.container
-                .notClicked($.proxy(this.collapse, this));
+                .notClicked($.proxy(this._onNotClicked, this));
 
             this.container
                 .mousedown(function () {
@@ -326,11 +339,11 @@
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
-            var inverted = this._isInverted()
+            var inverted = this.dropDownContainer
+                               .is('.ui-dropdown-inverted')
                 self = this;
 
             this.dropDownContainer
-                .toggleClass('ui-dropdown-inverted', inverted)
                 .hide({
                     effect: 'slide',
                     direction: inverted ? 'down' : 'up',
@@ -424,7 +437,7 @@
             elem.css({
                     visibility: 'hidden',
                     display: 'block',
-                    width: this.container.width()
+                    width: this.container.outerWidth()
                 });
 
             this._computeContainerSize();
@@ -478,46 +491,37 @@
         },
 
         _buildMenu: function (data) {
-            var items = [];
+            var self = this,
+                items = [],
+                el = null;
 
             if (this.options['allowEmpty']) {
-                var el = $('<li>')
-                    .data('menu-item', { text: '', value: '', selected: false })
-                    .attr('value', '')
-                    .append('&nbsp;')
-                    .on({
-                        mouseenter: function () { $(this).addClass('ui-state-hover'); },
-                        mouseleave: function () { $(this).removeClass('ui-state-hover'); }
-                    });
-
-                items.push(el[0]);
+                items.push(self._createItem({ text: '&nbsp;', value: '', selected: false }));
             }
 
             $.each(data, function (index, item) {
-                var el = $('<li>')
-                    .data('menu-item', item)
-                    .attr('value', item.value);
-
-                if (item.icon) {
-                    el.append(
-                        $('<span>').appendClass('ui-icon')
-                                   .appendClass(item.icon)
-                    );
-                }
-
-                if (item.cls) el.addClass(item.cls);
-
-                el.append(item.text);
-                el.toggleClass('ui-selected', item.selected);
-                el.on({
-                    mouseenter: function () { $(this).addClass('ui-state-hover'); },
-                    mouseleave: function () { $(this).removeClass('ui-state-hover'); }
-                });
-
-                items.push(el[0]);
+                items.push(self._createItem(item));
             });
 
             return items;
+        },
+
+        _createItem: function(menuItem) {
+            return $('<li>', {
+                'value': menuItem.value,
+                'tabindex': -1,
+                'data': { 'menu-item': menuItem },
+                'class': (menuItem.selected ? 'ui-selected ' : '') + (menuItem.cls || ''),
+                'html': menuItem.text,
+                'on': {
+                    mouseenter: function() { $(this).addClass('ui-state-hover'); },
+                    mouseleave: function() { $(this).removeClass('ui-state-hover'); }
+                },
+                'prepend': menuItem.icon
+                    ? $('<span>').appendClass('ui-icon')
+                                 .appendClass(menuItem.icon)
+                    : ''
+            });
         },
 
         _computeContainerSize: function () {
@@ -525,9 +529,10 @@
             //We may not want all list items visible,
             //just include the height of the visible items
             var listSize = this.options['listSize'];
-            var height = this.list
-                    .children()
-                    .totalHeight(true, listSize);
+            var height =
+                Math.ceil(this.list
+                              .children()
+                              .totalHeight(true, listSize));
 
             //Adjust the scroll container's height
             this.scrollContainer
@@ -535,8 +540,10 @@
 
             if (this.otherValue) {
                 //Add the other value input's height to the overall dropdown height
-                //FixMe: remove magic number
-                height += this.otherValue.outerHeight() + 10;
+                height +=
+                    this.otherValue
+                        .parent()
+                        .outerHeight(true);
             }
 
             this.dropDownContainer
@@ -572,23 +579,20 @@
             }
 
             var node = $('<input>', {
-                type: 'text',
-                tabindex: -1,
-                'class': 'ui-dropdown-othervalue ui-widget ui-widget-content ui-state-default ignore-validation',
+                'type': 'text',
+                'tabindex': -1,
+                'class': 'ui-dropdown-othervalue ui-state-default ignore-validation',
                 'placeholder': 'Other',
-                on: {
-                    keydown: $.proxy(this._onOtherKeyDown, this),
-                    focus: function () { $(this).addClass('ui-state-hover'); },
-                    blur: $.proxy(this._onLostFocus, this)
+                'on': { keydown: $.proxy(this._onOtherKeyDown, this) },
+                'data': {
+                    'menu-item': {
+                        text: othr,
+                        value: othr,
+                        selected: true
+                    }
                 }
-            });
-
-            node.data('menu-item', {
-                    text: othr,
-                    value: othr,
-                    selected: true
-                })
-                .appendTo(this.dropDownContainer);
+            }).appendTo(this.dropDownContainer)
+              .wrap('<div class="ui-dropdown-otherwrap">');
 
             if ($.validation) {
                 node.rules({ required: false });
@@ -643,15 +647,10 @@
         },
 
         _addContainer: function () {
-            var container = $('<div>', {
-                'class': 'ui-dropdown-container noSelect'
+            return $('<div>', {
+                'class': 'ui-dropdown-container noSelect',
+                'on': { keydown: $.proxy(this._onKeyDown, this) }
             });
-
-            container.on({
-                keydown: $.proxy(this._onKeyDown, this)
-            });
-
-            return container;
         },
 
         _addDropDown: function () {
@@ -664,9 +663,7 @@
         _addList: function () {
             return $('<ul>', {
                 'class': 'ui-dropdown-list',
-                'on': {
-                    click: $.proxy(this._onItemClicked, this)
-                }
+                'on': { click: $.proxy(this._onItemClicked, this) }
             });
         },
 
@@ -773,6 +770,18 @@
         /***********************************
         **     Events
         ***********************************/
+
+        _onNotClicked: function(event) {
+            var elem = $(event.target);
+
+            if (!this.dropDownContainer.is(':visible') || this.dropDownContainer.find(elem).length > 0) {
+                console.log('NotClicked ignored', this.value.prop('name'));
+                return;
+            }
+
+            console.log('Not It!');
+            this.collapse();
+        },
 
         _onValueChanged: function (event) {
             var val = this.value.val();
@@ -935,23 +944,13 @@
         },
 
         _onLostFocus: function (event) {
-            var el = $(event.relatedTarget || event.delegateTarget || event.target);
-            if (el.is('.ui-dropdown-othervalue'))
-                event.preventDefault();
-                return false;
-            }
-
-            console.log('lost focus');
-
-            var opt = this.items
-                          .filter('.ui-state-hover');
-
-            if (opt.length > 0) {
-                this.selected(opt);
-            }
-
-            this.collapse();
-            return false;
+            var self = this;
+            //Let the browser change focus, then we can see who's focused
+            setTimeout(function() {
+                var menuItem = self.dropDownContainer.find(':focus');
+                if (menuItem.length > 0) return;
+                self.collapse();
+            }, 100);
         },
 
         _onValidationError: function (event, data) {
