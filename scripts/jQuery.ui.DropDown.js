@@ -3,7 +3,7 @@
 /***
  *      Author: KodingSykosis
  *        Date: 12/17/2013
- *     Version: 1.1.0
+ *     Version: 1.1.2
  *     License: GPL v3 (see License.txt or http://www.gnu.org/licenses/)
  * Description: This widget extends and styles the browser's drop down control
  *
