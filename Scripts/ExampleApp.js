@@ -1,4 +1,4 @@
-﻿(function($) {
+(function($) {
     $(function() {
         $('#mainform').validate({
             rules: {
@@ -25,7 +25,7 @@
                 }
             }
         });
-        
+
 
         $('.dropdown').DropDown({
             allowEmpty: true
