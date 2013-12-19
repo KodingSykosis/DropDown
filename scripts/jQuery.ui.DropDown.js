@@ -1,7 +1,9 @@
-﻿/***
+/*jslint sub:true,laxbreak:true*/
+/*globals window,jQuery*/
+/***
  *      Author: KodingSykosis
- *        Date: 04/01/2013
- *     Version: 1.0
+ *        Date: 12/17/2013
+ *     Version: 1.1.0
  *     License: GPL v3 (see License.txt or http://www.gnu.org/licenses/)
  * Description: This widget extends and styles the browser's drop down control
  *
@@ -49,6 +51,74 @@
         };
     }
 
+    $.fn.totalHeight = function (outer, max) {
+        var height = 0;
+
+        if (typeof outer == 'number' && typeof max == 'undefined') {
+            max = outer;
+            outer = false;
+        }
+
+        this.each(function (idx) {
+            var el = $(this),
+                pos = el.css('position'),
+                disp = el.css('display'),
+                vis = el.css('visibility'),
+                uncomputed = !el.is(':visible');
+
+            if (typeof max != 'undefined' && idx > max && max != -1 && max != null) {
+                return false;
+            }
+
+            if (uncomputed) {
+                el.css({
+                    position: 'absolute',
+                    display: 'block',
+                    visibility: 'hidden'
+                });
+            }
+
+            height +=
+                el[outer ? 'outerHeight' : 'height']();
+
+            if (uncomputed) {
+                el.css({
+                    position: pos,
+                    display: disp,
+                    visibility: vis
+                });
+            }
+        });
+
+        return height == 0 ? null : height;
+    };
+
+    $.fn.notClicked = function (handler) {
+        if (!handler) return;
+        var element = this;
+
+        $(window).click(function (event) {
+            var target = $(event.target);
+            if (!target.is(element) && element.find(target).length == 0) {
+                handler.call(element, $.Event('notClicked', { target: target }));
+            }
+        });
+    };
+
+    //FixMe: http://bugs.jqueryui.com/ticket/8932
+    var orgHeight = $.fn.height;
+    $.fn.height = function (height) {
+        if (!height || this.css('box-sizing') !== 'border-box') {
+            return orgHeight.apply(this, arguments);
+        }
+
+        var paddingTop = this.css('padding-top'),
+            paddingBottom = this.css('padding-bottom'),
+            paddingVert = parseFloat(paddingTop || 0) + parseFloat(paddingBottom || 0);
+
+        return orgHeight.call(this, height - paddingVert);
+    };
+
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -69,13 +139,17 @@
         // Set up the widget
         _create: function () {
             var self = this;
-            this.wrap = $('<div>');
-            this.name = this.element.attr('name');
+            this.wrap = $('<div>', {
+                'class': 'ui-dropdown-wrap'
+            });
+            this.name =
+                this.element
+                    .attr('name');
 
             this.element
-                .addClass('ui-dropdown-source');
-
-            this.element.hide();
+                .addClass('ui-dropdown-source')
+                .hide()
+                .removeAttr('name');
 
             var style = window.getComputedStyle(this.element[0]);
             this.wrap
@@ -92,8 +166,12 @@
                     fontSize: style.fontSize
                 });
 
-            this.element.wrap(this.wrap);
-            this.wrap = this.element.parent();
+            this.element
+                .wrap(this.wrap);
+
+            this.wrap =
+                this.element
+                    .parent();
 
             //We are assuming the widget is instantiated on a select node
             //Wrap the element in a div or set it to display none?
@@ -109,11 +187,10 @@
 
             //Swap the select element out for our dropdown
             this.element
-                .removeAttr('name')
                 .before(this.container);
 
             this.dropDownContainer = this._addDropDown()
-                .appendTo(this.container);
+                .appendTo('body');
 
             this.list = this._addList();
             this.scrollContainer = this._addScrollbar(this.list);
@@ -122,17 +199,21 @@
             //Initiate the scrollbar
             this.scroll
                 .tinyscrollbar({
-                    contentPadding: 0
+                    contentPadding: 0,
+                    scrollPadding: 0
                 });
 
             this.trigger = this._addTrigger()
                 .appendTo(this.container);
 
+            this.value
+                .data(this.widgetName, this);
+
             //re-compute list items and size
             this.refresh();
 
             this.container
-                .notClicked($.proxy(this.collapse, this));
+                .notClicked($.proxy(this._onNotClicked, this));
 
             this.container
                 .mousedown(function () {
@@ -142,8 +223,15 @@
             $(window)
                 .mouseup(function () {
                     self.mouseDown = false;
+                })
+                .resize(function() {
+                    self.collapse();
+                })
+                .blur(function() {
+                    self.skipFocus =
+                        self.display
+                            .is(document.activeElement);
                 });
-
 
             this.dropDownContainer
                 .hide();
@@ -183,8 +271,7 @@
                 this.list
                     .children('.ui-selected');
 
-
-            if (typeof item != 'undefined') {
+            if (typeof item != 'undefined' && item !== null) {
                 if (option.length > 0) {
                     option.removeClass('ui-selected')
                         .data('menu-item').selected = false;
@@ -192,7 +279,7 @@
 
                 if (item.length > 0) {
                     item = item.data('menu-item');
-                } else if (item.length == 0) {
+                } else if (item.length === 0) {
                     item = { value: '' };
                 }
 
@@ -214,7 +301,16 @@
                 this.value
                     .val(item.value || item.text);
 
-                var empty = this.value.val() == '';
+                if (this.value.val() !== this.element.val()) {
+                    this.element
+                        .val(this.value.val());
+                    this.element
+                        .change();
+                }
+
+
+
+                var empty = this.value.val() === '';
 
                 this.display
                     .val(empty ? this.options['emptyText'] : item.text)
@@ -228,18 +324,31 @@
 
         expand: function () {
             if (this.dropDownContainer.is(':visible')) return;
+            var inverted = this._position(this.dropDownContainer);
 
             this.dropDownContainer
-                .slideDown(120, $.proxy(this._computeContainerSize, this));
+                .toggleClass('ui-dropdown-inverted', inverted)
+                .show({
+                    effect: 'slide',
+                    direction: inverted ? 'down' : 'up',
+                    duration: this.options['duration']
+                });
 
             this._updScrollPosition();
         },
 
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
+            var inverted = this.dropDownContainer
+                               .is('.ui-dropdown-inverted')
+                self = this;
 
             this.dropDownContainer
-                .slideUp(120);
+                .hide({
+                    effect: 'slide',
+                    direction: inverted ? 'down' : 'up',
+                    duration: this.options['duration']
+                });
 
             this.items
                 .filter('.ui-state-hover')
@@ -255,7 +364,7 @@
         },
 
         filter: function (value) {
-            if (value.length == 0) {
+            if (value.length === 0) {
                 return this.clearFilter();
             }
 
@@ -270,11 +379,10 @@
                     })
                     .show();
 
-            if (find.length == 0) {
+            if (find.length === 0) {
                 this.display
                     .effect('highlight', { color: '#C6244A' }, 200);
 
-                $.debug('debug', this.widgetName, 'No matches');
                 return null;
             }
 
@@ -325,6 +433,39 @@
         **     Helpers
         ***********************************/
 
+        _position: function(elem) {
+            elem.css({
+                    visibility: 'hidden',
+                    display: 'block',
+                    width: this.container.outerWidth()
+                });
+
+            this._computeContainerSize();
+
+            elem.position({
+                my: 'left top',
+                at: 'left bottom',
+                of: this.container,
+                collision: 'none flipfit',
+                within: this.options['viewPort']
+            });
+
+            var inverted = this._isInverted();
+
+            elem.css({
+                    display: 'none',
+                    visibility: ''
+                });
+
+            return inverted;
+        },
+
+        _isInverted: function() {
+            var pos = this.dropDownContainer.position();
+            var offset = this.container.offset();
+            return offset.top - pos.top > 0;
+        },
+
         _consumeSelect: function (el) {
             var data = [],
                 ignore = this.options['ignoreEmptyOptions'],
@@ -350,46 +491,37 @@
         },
 
         _buildMenu: function (data) {
-            var items = [];
+            var self = this,
+                items = [],
+                el = null;
 
             if (this.options['allowEmpty']) {
-                var el = $('<li>')
-                    .data('menu-item', { text: '', value: '', selected: false })
-                    .attr('value', '')
-                    .append('&nbsp;')
-                    .on({
-                        mouseenter: function () { $(this).addClass('ui-state-hover'); },
-                        mouseleave: function () { $(this).removeClass('ui-state-hover'); }
-                    });
-
-                items.push(el[0]);
+                items.push(self._createItem({ text: '&nbsp;', value: '', selected: false }));
             }
 
             $.each(data, function (index, item) {
-                var el = $('<li>')
-                    .data('menu-item', item)
-                    .attr('value', item.value);
-
-                if (item.icon) {
-                    el.append(
-                        $('<span>').appendClass('ui-icon')
-                                   .appendClass(item.icon)
-                    );
-                }
-
-                if (item.cls) el.addClass(item.cls);
-
-                el.append(item.text);
-                el.toggleClass('ui-selected', item.selected);
-                el.on({
-                    mouseenter: function () { $(this).addClass('ui-state-hover'); },
-                    mouseleave: function () { $(this).removeClass('ui-state-hover'); }
-                });
-
-                items.push(el[0]);
+                items.push(self._createItem(item));
             });
 
             return items;
+        },
+
+        _createItem: function(menuItem) {
+            return $('<li>', {
+                'value': menuItem.value,
+                'tabindex': -1,
+                'data': { 'menu-item': menuItem },
+                'class': (menuItem.selected ? 'ui-selected ' : '') + (menuItem.cls || ''),
+                'html': menuItem.text,
+                'on': {
+                    mouseenter: function() { $(this).addClass('ui-state-hover'); },
+                    mouseleave: function() { $(this).removeClass('ui-state-hover'); }
+                },
+                'prepend': menuItem.icon
+                    ? $('<span>').appendClass('ui-icon')
+                                 .appendClass(menuItem.icon)
+                    : ''
+            });
         },
 
         _computeContainerSize: function () {
@@ -397,13 +529,10 @@
             //We may not want all list items visible,
             //just include the height of the visible items
             var listSize = this.options['listSize'];
-            var height = this.list
-                    .children()
-                    .totalHeight(true, listSize);
-
-            //Add the UL list margins & paddings
-            height += this.list.outerHeight() -
-                this.list.children().totalHeight(true);
+            var height =
+                Math.ceil(this.list
+                              .children()
+                              .totalHeight(true, listSize));
 
             //Adjust the scroll container's height
             this.scrollContainer
@@ -411,15 +540,14 @@
 
             if (this.otherValue) {
                 //Add the other value input's height to the overall dropdown height
-                height += this.otherValue.outerHeight() + 10;
+                height +=
+                    this.otherValue
+                        .parent()
+                        .outerHeight(true);
             }
 
             this.dropDownContainer
                 .height(height);
-
-            this.scroll
-                .find('.scrollbar')
-                .width(10);
 
             this.scroll
                 .tinyscrollbar_update('relative');
@@ -432,25 +560,15 @@
                 el.toggleClass('ui-state-hover');
             };
 
-            var btn = $('<div>', {
-                'class': 'ui-button ui-widget ui-corner-all ui-state-default ui-dropdown-trigger'
-                //}).css({
-                //    position: 'absolute',
-                //    top: '3px',
-                //    right: '2px',
-                //    bottom: '3px',
-                //    width: '16px',
-                //    borderRadius: '3px'
-            }).on({
-                click: $.proxy(this.toggle, this),
-                mouseenter: fn, // function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); },
-                mouseleave: fn //function () { $(this).toggleClass('ui-state-hover', 'ui-state-default'); }
-            }).append(
-                $('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })
-                    //.css('margin-top', '1px')
-            );
-
-            return btn;
+            return $('<div>', {
+                'class': 'ui-button ui-widget ui-state-default ui-dropdown-trigger',
+                on: {
+                    click: $.proxy(this.toggle, this),
+                    mouseenter: fn,
+                    mouseleave: fn
+                },
+                append: [$('<span>', { 'class': 'ui-icon ui-icon-triangle-1-s' })]
+            });
         },
 
         _addOtherValue: function () {
@@ -461,26 +579,20 @@
             }
 
             var node = $('<input>', {
-                type: 'text',
-                tabindex: -1,
-                'class': 'ui-dropdown-othervalue ui-widget ui-widget-content ui-corner-all ui-state-default ignore-validation',
-                'placeholder': 'Other'
-            });
-
-            //node.css({
-            //    width: this.dropDownContainer.width() - 8
-            //})
-            node.on({
-                    keydown: $.proxy(this._onOtherKeyDown, this),
-                    focus: function () { $(this).addClass('ui-state-hover'); },
-                    blur: $.proxy(this._onLostFocus, this)
-                })
-                .data('menu-item', {
-                    text: othr,
-                    value: othr,
-                    selected: true
-                })
-                .appendTo(this.dropDownContainer);
+                'type': 'text',
+                'tabindex': -1,
+                'class': 'ui-dropdown-othervalue ui-state-default ignore-validation',
+                'placeholder': 'Other',
+                'on': { keydown: $.proxy(this._onOtherKeyDown, this) },
+                'data': {
+                    'menu-item': {
+                        text: othr,
+                        value: othr,
+                        selected: true
+                    }
+                }
+            }).appendTo(this.dropDownContainer)
+              .wrap('<div class="ui-dropdown-otherwrap">');
 
             if ($.validation) {
                 node.rules({ required: false });
@@ -490,87 +602,68 @@
         },
 
         _addScrollbar: function (children) {
-            return $('<div>')
-                .css({
+            return $('<div>', {
+                css: {
                     position: 'relative',
                     width: '100%',
                     padding: '2px',
                     boxSizing: 'border-box'
-                })
-                .append(
-                    this.scroll = $('<div>', { 'class': 'tinyscrollbar' }).append(children)
-                )
-                .appendTo(this.dropDownContainer);
+                },
+                append: [this.scroll = $('<div>', { 'class': 'tinyscrollbar' }).append(children)]
+            }).appendTo(this.dropDownContainer);
         },
 
         _addInputs: function () {
             this.value = $('<input>', {
-                type: 'hidden',
-                name: this.name,
-                'class': 'ui-dropdown-value'
-            });
-
-            this.value
-                .on({
+                'type': 'hidden',
+                'name': this.name,
+                'class': 'ui-dropdown-value',
+                'on': {
                     change: $.proxy(this._onValueChanged, this),
-                    validationrules: $.proxy(this._onValidationRules, this)
-                });
-
-            this.display = $('<input>', {
-                type: 'text',
-                readonly: 'readonly',
-                'class': 'ui-widget ui-widget-content ui-corner-all ui-dropdown-display ignore-validation',
-                placeholder: this.options['emptyText']
+                    validationrules: $.proxy(this._onValidationRules, this),
+                    validationerror: $.proxy(this._onValidationError, this),
+                    validationsuccess: $.proxy(this._onValidationSuccess, this)
+                }
             });
 
-            this.display
-                .attr('autocomplete', 'off')
-                .css({
+            return this.display = $('<input>', {
+                'type': 'text',
+                'readonly': 'readonly',
+                'class': 'ui-widget ui-widget-content ui-dropdown-display ignore-validation',
+                'placeholder': this.options['emptyText'],
+                'attr': {'autocomplete': 'off'},
+                'css': {
                     width: '100%',
                     boxSizing: 'border-box',
                     height: '26px',
                     margin: '0px'
-                })
-                .on({
-                    focus: $.proxy(this.expand, this),
+                },
+                'on': {
+                    focus: $.proxy(this._onFocus, this),
                     blur: $.proxy(this._onLostFocus, this),
                     keypress: $.proxy(this._onKeyPress, this)
-                });
-
-            return this.display;
+                }
+            });
         },
 
         _addContainer: function () {
-            var container = $('<div>', {
-                'class': 'ui-dropdown-container noSelect'
+            return $('<div>', {
+                'class': 'ui-dropdown-container noSelect',
+                'on': { keydown: $.proxy(this._onKeyDown, this) }
             });
-
-            container.on({
-                keydown: $.proxy(this._onKeyDown, this)
-            });
-
-            return container;
         },
 
         _addDropDown: function () {
-            var el = $('<div>', {
-                'class': 'ui-dropdown-container-inner'
+            return $('<div>', {
+                'class': 'ui-dropdown-container-inner',
+                'width': this.container.width()
             });
-
-            return el
-                .css({
-                    width: '100%', //this.container.outerWidth(),
-                    zIndex: 1000
-                });
         },
 
         _addList: function () {
-            var el = $('<ul>', {
-                'class': 'ui-dropdown-list'
-            });
-
-            return el.on({
-                click: $.proxy(this._onItemClicked, this)
+            return $('<ul>', {
+                'class': 'ui-dropdown-list',
+                'on': { click: $.proxy(this._onItemClicked, this) }
             });
         },
 
@@ -585,17 +678,12 @@
                 this.display
                     .rules({ required: false });
 
-
                 if (rules) {
                     this.value
-                        .on({
-                            validationerror: $.proxy(this._onValidationError, this),
-                            validationsuccess: $.proxy(this._onValidationSuccess, this)
-                        })
                         .rules(rules);
                 }
             } catch (e) {
-                $.debug('error', this.widgetName, e);
+                $.error(this.widgetName, e);
             }
         },
 
@@ -628,7 +716,7 @@
                         .call(validator)
                         .add(myElement)
                         .not(display);
-                    
+
                     if (!display.is(':visible')) {
                         results = results.not(myElement);
                     }
@@ -640,7 +728,7 @@
 
         _updScrollPosition: function (node) {
             var el = node || this.selected();
-            if (el.length == 0) {
+            if (el.length === 0) {
                 this.scroll
                     .tinyscrollbar_update(0);
 
@@ -683,18 +771,30 @@
         **     Events
         ***********************************/
 
+        _onNotClicked: function(event) {
+            var elem = $(event.target);
+
+            if (!this.dropDownContainer.is(':visible') || this.dropDownContainer.find(elem).length > 0) {
+                console.log('NotClicked ignored', this.value.prop('name'));
+                return;
+            }
+
+            console.log('Not It!');
+            this.collapse();
+        },
+
         _onValueChanged: function (event) {
             var val = this.value.val();
             var selected = this.list.find('li[value="' + val + '"]');
 
-            if (selected.length == 0 && this.otherValue) {
+            if (selected.length === 0 && this.otherValue) {
                 selected = this.otherValue;
                 this.otherValue.val(val);
                 var tmp = selected.data('menu-item');
                 tmp.text = val;
             }
 
-            if (selected.length == 0) {
+            if (selected.length === 0) {
                 return;
             }
 
@@ -719,7 +819,7 @@
                 .filter('.ui-state-hover:visible')
                 .first();
 
-            if (opt.length == 0) {
+            if (opt.length === 0) {
                 opt = this.selected();
             }
 
@@ -754,7 +854,7 @@
                     break;
                 case 13: //Enter
                     if (open) {
-                        if (opt.length > 0 && opt.val() != '') {
+                        if (opt.length > 0 && opt.val() !== '') {
                             this.selected(opt);
                         }
 
@@ -831,8 +931,6 @@
             if (!element.is('li')) return;
 
             event.preventDefault();
-            $.debug('debug', this.widgetName, 'Item Clicked', element);
-
             var item = element.data('menu-item');
             if (!item) return;
 
@@ -840,21 +938,19 @@
             this.collapse();
         },
 
+        _onFocus: function(event) {
+            if (!this.skipFocus) this.expand();
+            this.skipFocus = false;
+        },
+
         _onLostFocus: function (event) {
-            var el = $(event.relatedTarget);
-
-            if ((this.mouseDown && !el.is('li')) || this.display.is(':focus')) {
-                return;
-            }
-
-            var opt = this.items
-                          .filter('.ui-state-hover');
-
-            if (opt.length > 0) {
-                this.selected(opt);
-            }
-
-            this.collapse();
+            var self = this;
+            //Let the browser change focus, then we can see who's focused
+            setTimeout(function() {
+                var menuItem = self.dropDownContainer.find(':focus');
+                if (menuItem.length > 0) return;
+                self.collapse();
+            }, 100);
         },
 
         _onValidationError: function (event, data) {
@@ -862,7 +958,7 @@
             this.display
                 .toggleClass(data.errorClass, isError)
                 .toggleClass(data.validClass, !isError);
-            
+
             return false;
         },
 
@@ -871,10 +967,10 @@
             this.display
                 .toggleClass(data.errorClass, isError)
                 .toggleClass(data.validClass, !isError);
-            
+
             return false;
         },
-        
+
         _onValidationRules: function (event, data) {
             if (data.command == 'add' || data.command == 'remove') {
                 this._applyValidation();
@@ -901,7 +997,7 @@
                 $(element).trigger('validationsuccess', data);
             }
         });
-        
+
         if ($.fn.rules) {
             var rules = $.fn.rules;
             $.fn.rules = function (command, argument) {
