@@ -104,6 +104,44 @@
             }
         });
     };
+    
+    // http://darcyclarke.me/development/detect-attribute-changes-with-jquery
+    //http://jsfiddle.net/kodingsykosis/k3Q72/
+    $.fn.watch = function (props, callback) {
+        return this.each(function () {
+            var elem = $(this),
+                prop = (elem.data('watching') || []).concat(props.split(' '));
+                
+            elem.data('watching', prop);
+            elem.on('mutation DOMAttrModified propertychange', function (e) {
+                var propName = e.attributeName || e.originalEvent.propertyName;
+                var _props = $(this).data('watching');
+                if (_props.indexOf(propName) > -1) {
+                    callback.apply(this, arguments);
+                }
+            });
+            
+            //Stupid IE8 and it's undefined error shit
+            var mutationObserver = (typeof WebKitMutationObserver === 'undefined'
+                                    ? (typeof MutationObserver === 'undefined'
+                                       ? undefined
+                                       : MutationObserver)
+                                    : WebKitMutationObserver);
+
+            //Support MutationObservers
+            if (typeof mutationObserver !== 'undefined') {
+                var observer = new mutationObserver(function (mutations) {
+                    mutations.forEach(function (e) {
+                        var evt = $.Event('mutation', e);
+                        evt.type = 'mutation';
+                        $(e.target).triggerHandler(evt);
+                    });
+                });
+                
+                observer.observe(this, { attributes: true, subtree: false });
+            }
+        });
+    };
 
     //FixMe: http://bugs.jqueryui.com/ticket/8932
     var orgHeight = $.fn.height;
@@ -167,6 +205,7 @@
                 });
 
             this.element
+                .watch('disabled', $.proxy(this._onDisabledChanged, this))
                 .wrap(this.wrap);
 
             this.wrap =
@@ -235,6 +274,8 @@
 
             this.dropDownContainer
                 .hide();
+
+            this._onDisabledChanged();
         },
 
         /***********************************
@@ -243,16 +284,14 @@
 
         refresh: function () {
             var data = this._consumeSelect(this.element);
-            var items = this._buildMenu(data);
+            this.items = this._buildMenu(data);
 
             this.list
                 .children('li')
                 .remove();
 
             this.list
-                .append(items);
-
-            this.items = $(items);
+                .append(this.items);
 
             var validator = this._getFormValidator();
             if (validator) {
@@ -365,37 +404,36 @@
 
         filter: function (value) {
             if (value.length === 0) {
-                return this.clearFilter();
+                this.clearFilter();
+                this._setSelection(this.display[0],0,this.display.val().length);
+
+                return $();
             }
 
             var pattern = this.options['filterEx'].replace('{0}', value);
             var options = this.options['filterOpt'];
             var re = new RegExp(pattern, options);
 
-            var find =
+            var found =
                 this.items
                     .filter(function (idx) {
                         return re.test($(this).text());
                     })
                     .show();
 
-            if (find.length === 0) {
+            if (found.length === 0) {
                 this.display
                     .effect('highlight', { color: '#C6244A' }, 200);
 
-                return null;
+                return $();
             }
 
-            this.list
-                .children()
-                .not(find)
+            this.items
+                .removeClass('ui-state-hover')
+                .not(found)
                 .hide();
 
-            this.list
-                .children('.ui-state-hover')
-                .removeClass('ui-state-hover');
-
-            var currentValue = find
+            var currentValue = found
                 .first()
                 .addClass('ui-state-hover')
                 .text();
@@ -412,21 +450,32 @@
             this.currentFilter = value;
             this._updScrollPosition();
 
-            return find;
+            return found;
         },
 
         clearFilter: function () {
             this.currentFilter = '';
-            this.list
-                .children()
+            this.items
                 .show()
                 .removeClass('ui-state-hover');
+        },
+        
+        disable: function() {
+            this._super();
+            this.display
+                .prop('disabled', true);
 
-            this.display[0]
-                .selectionStart = 0;
-
-            this.display[0]
-                .selectionEnd = 0;
+            this.trigger
+                .hide();
+        },
+        
+        enable: function() {
+            this._super();
+            this.display
+                .prop('disabled', false);
+            
+            this.trigger
+                .show();
         },
 
         /***********************************
@@ -503,7 +552,7 @@
                 items.push(self._createItem(item));
             });
 
-            return items;
+            return $(items);
         },
 
         _createItem: function(menuItem) {
@@ -521,7 +570,7 @@
                     ? $('<span>').appendClass('ui-icon')
                                  .appendClass(menuItem.icon)
                     : ''
-            });
+            })[0];
         },
 
         _computeContainerSize: function () {
@@ -771,15 +820,20 @@
         **     Events
         ***********************************/
 
+        _onDisabledChanged: function(event) {
+            var disabled = this.element.prop('disabled');
+            
+            if (disabled) this.disable();
+            else this.enable();
+        },
+        
         _onNotClicked: function(event) {
             var elem = $(event.target);
 
             if (!this.dropDownContainer.is(':visible') || this.dropDownContainer.find(elem).length > 0) {
-                console.log('NotClicked ignored', this.value.prop('name'));
                 return;
             }
 
-            console.log('Not It!');
             this.collapse();
         },
 
