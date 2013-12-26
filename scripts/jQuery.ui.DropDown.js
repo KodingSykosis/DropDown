@@ -51,6 +51,7 @@
         };
     }
 
+    if (typeof $.fn.totalHeight === 'undefined')
     $.fn.totalHeight = function (outer, max) {
         var height = 0;
 
@@ -93,20 +94,24 @@
         return height == 0 ? null : height;
     };
 
+    if (typeof $.fn.notClicked === 'undefined')
     $.fn.notClicked = function (handler) {
-        if (!handler) return;
-        var element = this;
+        return this.each(function() {
+            var element = $(this);
 
-        $(window).click(function (event) {
-            var target = $(event.target);
-            if (!target.is(element) && element.find(target).length == 0) {
-                handler.call(element, $.Event('notClicked', { target: target }));
-            }
+            if (typeof handler === 'function')
+            $(window).click(function (event) {
+                var target = $(event.target);
+                if (!target.is(element) && element.find(target).length == 0) {
+                    handler.call(element, $.Event('notClicked', { target: target }));
+                }
+            });
         });
     };
 
     // http://darcyclarke.me/development/detect-attribute-changes-with-jquery
     //http://jsfiddle.net/kodingsykosis/k3Q72/
+    if (typeof $.fn.watch === 'undefined')
     $.fn.watch = function (props, callback) {
         return this.each(function () {
             var elem = $(this),
