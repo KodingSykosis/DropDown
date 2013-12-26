@@ -104,14 +104,14 @@
             }
         });
     };
-    
+
     // http://darcyclarke.me/development/detect-attribute-changes-with-jquery
     //http://jsfiddle.net/kodingsykosis/k3Q72/
     $.fn.watch = function (props, callback) {
         return this.each(function () {
             var elem = $(this),
                 prop = (elem.data('watching') || []).concat(props.split(' '));
-                
+
             elem.data('watching', prop);
             elem.on('mutation DOMAttrModified propertychange', function (e) {
                 var propName = e.attributeName || e.originalEvent.propertyName;
@@ -120,7 +120,7 @@
                     callback.apply(this, arguments);
                 }
             });
-            
+
             //Stupid IE8 and it's undefined error shit
             var mutationObserver = (typeof WebKitMutationObserver === 'undefined'
                                     ? (typeof MutationObserver === 'undefined'
@@ -137,7 +137,7 @@
                         $(e.target).triggerHandler(evt);
                     });
                 });
-                
+
                 observer.observe(this, { attributes: true, subtree: false });
             }
         });
@@ -174,7 +174,9 @@
         keyTraps: [127, 27, 38, 40, 13, 8, 33, 34],
         currentFilter: '',
 
-        // Set up the widget
+        /***********************************
+        **     Widget Factory Interface
+        ***********************************/
         _create: function () {
             var self = this;
             this.wrap = $('<div>', {
@@ -276,6 +278,22 @@
                 .hide();
 
             this._onDisabledChanged();
+        },
+
+        _destroy: function() {
+            this.container
+                .remove();
+
+            this.dropDownContainer
+                .remove();
+
+            this.element
+                .attr('name', this.value.attr('name'))
+                .unwrap()
+                .show();
+
+            this.value
+                .remove();
         },
 
         /***********************************
@@ -459,7 +477,7 @@
                 .show()
                 .removeClass('ui-state-hover');
         },
-        
+
         disable: function() {
             this._super();
             this.display
@@ -468,12 +486,12 @@
             this.trigger
                 .hide();
         },
-        
+
         enable: function() {
             this._super();
             this.display
                 .prop('disabled', false);
-            
+
             this.trigger
                 .show();
         },
@@ -822,11 +840,11 @@
 
         _onDisabledChanged: function(event) {
             var disabled = this.element.prop('disabled');
-            
+
             if (disabled) this.disable();
             else this.enable();
         },
-        
+
         _onNotClicked: function(event) {
             var elem = $(event.target);
 
