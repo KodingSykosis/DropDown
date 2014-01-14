@@ -109,7 +109,7 @@
         });
     };
 
-    // http://darcyclarke.me/development/detect-attribute-changes-with-jquery
+    //http://darcyclarke.me/development/detect-attribute-changes-with-jquery
     //http://jsfiddle.net/kodingsykosis/k3Q72/
     if (typeof $.fn.watch === 'undefined')
     $.fn.watch = function (props, callback) {
@@ -117,14 +117,16 @@
             var elem = $(this),
                 prop = (elem.data('watching') || []).concat(props.split(' '));
 
-            elem.data('watching', prop);
-            elem.on('mutation DOMAttrModified propertychange', function (e) {
-                var propName = e.attributeName || e.originalEvent.propertyName;
-                var _props = $(this).data('watching');
-                if (_props.indexOf(propName) > -1) {
-                    callback.apply(this, arguments);
-                }
-            });
+            (function(fn) {
+                elem.data('watching', prop);
+                elem.on('mutation DOMAttrModified propertychange', function (e) {
+                    var propName = e.attributeName || e.originalEvent.propertyName;
+                    var _props = $(this).data('watching');
+                    if (_props.indexOf(propName) > -1) {
+                        fn.apply(this, arguments);
+                    }
+                });
+            })(callback);
 
             //Stupid IE8 and it's undefined error shit
             var mutationObserver = (typeof WebKitMutationObserver === 'undefined'
@@ -162,6 +164,20 @@
         return orgHeight.call(this, height - paddingVert);
     };
 
+    //Hook the jQuery set so we can update the dropdown's selected value;
+    var orgSet = $.valHooks.select.set;
+    $.valHooks.select = {
+        set: function( elem, value ) {
+            var result = orgSet(elem, value);
+
+            if ($(elem).is('.ui-dropdown-source:not(.updating)')) {
+                $(elem).triggerHandler('sourceUpdated');
+            }
+
+            return result;
+        }
+    };
+
     $.widget("kodingsykosis.DropDown", {
         options: {
             other: false,
@@ -176,7 +192,7 @@
             duration: 120,
             viewPort: window
         },
-        keyTraps: [127, 27, 38, 40, 13, 8, 33, 34],
+        keyTraps: [127, 27, 38, 40, 13, 8, 33, 34, 9],
         currentFilter: '',
 
         /***********************************
@@ -213,6 +229,7 @@
 
             this.element
                 .watch('disabled', $.proxy(this._onDisabledChanged, this))
+                .on('sourceUpdated', $.proxy(this._onSourceUpdated, this))
                 .wrap(this.wrap);
 
             this.wrap =
@@ -336,11 +353,11 @@
             if (typeof item != 'undefined' && item !== null) {
                 if (option.length > 0) {
                     option.removeClass('ui-selected')
-                        .data('menu-item').selected = false;
+                        .data('menuItem').selected = false;
                 }
 
                 if (item.length > 0) {
-                    item = item.data('menu-item');
+                    item = item.data('menuItem');
                 } else if (item.length === 0) {
                     item = { value: '' };
                 }
@@ -349,11 +366,11 @@
                     .children('li')
                     .each(function () {
                         var el = $(this);
-                        var data = el.data('menu-item') || {};
+                        var data = el.data('menuItem') || {};
 
                         data.selected = data.value === item.value;
                         el.toggleClass('ui-selected', data.selected);
-                        el.data('menu-item', data);
+                        el.data('menuItem', data);
                     });
 
                 if (this.list.children('.ui-selected').length > 0 && this.otherValue) {
@@ -365,8 +382,10 @@
 
                 if (this.value.val() !== this.element.val()) {
                     this.element
+                        .addClass('updating')
                         .val(this.value.val());
                     this.element
+                        .removeClass('updating')
                         .change();
                 }
 
@@ -429,6 +448,7 @@
             if (value.length === 0) {
                 this.clearFilter();
                 this._setSelection(this.display[0],0,this.display.val().length);
+                this._computeContainerSize();
 
                 return $();
             }
@@ -471,7 +491,8 @@
             );
 
             this.currentFilter = value;
-            this._updScrollPosition();
+            this._computeContainerSize();
+            //this._updScrollPosition();
 
             return found;
         },
@@ -582,7 +603,7 @@
             return $('<li>', {
                 'value': menuItem.value,
                 'tabindex': -1,
-                'data': { 'menu-item': menuItem },
+                'data': { 'menuItem': menuItem },
                 'class': (menuItem.selected ? 'ui-selected ' : '') + (menuItem.cls || ''),
                 'html': menuItem.text,
                 'on': {
@@ -603,7 +624,7 @@
             var listSize = this.options['listSize'];
             var height =
                 Math.ceil(this.list
-                              .children()
+                              .children(":visible")
                               .totalHeight(true, listSize));
 
             //Adjust the scroll container's height
@@ -657,7 +678,7 @@
                 'placeholder': 'Other',
                 'on': { keydown: $.proxy(this._onOtherKeyDown, this) },
                 'data': {
-                    'menu-item': {
+                    'menuItem': {
                         text: othr,
                         value: othr,
                         selected: true
@@ -850,6 +871,12 @@
             else this.enable();
         },
 
+        _onSourceUpdated: function(event) {
+            var val = this.element.val();
+            var selected = this.list.find('li[value="' + val + '"]');
+            this.selected(selected);
+        },
+
         _onNotClicked: function(event) {
             var elem = $(event.target);
 
@@ -867,7 +894,7 @@
             if (selected.length === 0 && this.otherValue) {
                 selected = this.otherValue;
                 this.otherValue.val(val);
-                var tmp = selected.data('menu-item');
+                var tmp = selected.data('menuItem');
                 tmp.text = val;
             }
 
@@ -875,7 +902,7 @@
                 return;
             }
 
-            var data = selected.data('menu-item');
+            var data = selected.data('menuItem');
             this.selected(data);
             this.collapse();
         },
@@ -884,10 +911,11 @@
             if (this.keyTraps.indexOf(event.which) == -1) return true;
             if (this.otherValue &&
                 this.otherValue.is(event.target) &&
-                event.which != 13 &&
-                event.which != 27) return true;
+                event.which !== 13 &&
+                event.which !== 27) return true;
 
-            event.preventDefault();
+            if (event.which !== 9) event.preventDefault();
+
             var open = this.list.is(':visible');
             var max = this.items.length;
             var size = this.options['listSize'];
@@ -935,10 +963,23 @@
                             this.selected(opt);
                         }
 
+                        this.clearFilter();
+                        this._setSelection(this.display[0],0,this.display.val().length);
+
                         return this.collapse();
                     }
 
                     break;
+                case 9: //Tab
+                    if (open) {
+                        if (opt.length > 0 && opt.val() !== '') {
+                            this.selected(opt);
+                        }
+
+
+                    }
+
+                    return true;
                 case 8: //Backspace
                     if (this.currentFilter.length > 0) {
                         return this.filter(this.currentFilter.substr(0, this.currentFilter.length - 1));
@@ -984,9 +1025,9 @@
                 case 13: //Enter
                 case 9:  //Tab
                     //Update the other's data object
-                    var data = this.otherValue.data('menu-item');
+                    var data = this.otherValue.data('menuItem');
                     data.text = this.otherValue.val();
-                    this.otherValue.data('menu-item', data);
+                    this.otherValue.data('menuItem', data);
 
                 case 38: //Up
                 case 40: //Down
@@ -1008,7 +1049,7 @@
             if (!element.is('li')) return;
 
             event.preventDefault();
-            var item = element.data('menu-item');
+            var item = element.data('menuItem');
             if (!item) return;
 
             this.selected(item);
