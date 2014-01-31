@@ -1,5 +1,5 @@
-/*jslint sub:true,laxbreak:true*/
-/*globals window,jQuery*/
+/*jslint sub:true,laxbreak:true,browser:true*/
+/*globals jQuery,MutationObserver,WebKitMutationObserver*/
 /***
  *      Author: KodingSykosis
  *        Date: 12/17/2013
@@ -67,7 +67,7 @@
                 vis = el.css('visibility'),
                 uncomputed = !el.is(':visible');
 
-            if (typeof max != 'undefined' && idx > max && max != -1 && max != null) {
+            if (typeof max !== 'undefined' && idx > max && max !== -1 && max !== null) {
                 return false;
             }
 
@@ -91,7 +91,7 @@
             }
         });
 
-        return height == 0 ? null : height;
+        return height === 0 ? null : height;
     };
 
     if (typeof $.fn.notClicked === 'undefined')
@@ -102,7 +102,7 @@
             if (typeof handler === 'function')
             $(window).click(function (event) {
                 var target = $(event.target);
-                if (!target.is(element) && element.find(target).length == 0) {
+                if (!target.is(element) && element.find(target).length === 0) {
                     handler.call(element, $.Event('notClicked', { target: target }));
                 }
             });
@@ -117,12 +117,12 @@
             var elem = $(this),
                 prop = (elem.data('watching') || []).concat(props.split(' '));
 
-            (function(fn) {
+            (function (fn) {
                 elem.data('watching', prop);
                 elem.on('mutation DOMAttrModified propertychange', function (e) {
                     var propName = e.attributeName || e.originalEvent.propertyName;
                     var _props = $(this).data('watching');
-                    if (_props.indexOf(propName) > -1) {
+                    if (_props.indexOf(propName) > -1 && typeof fn === 'function') {
                         fn.apply(this, arguments);
                     }
                 });
@@ -421,7 +421,7 @@
         collapse: function () {
             if (!this.dropDownContainer.is(':visible')) return;
             var inverted = this.dropDownContainer
-                               .is('.ui-dropdown-inverted')
+                               .is('.ui-dropdown-inverted'),
                 self = this;
 
             this.dropDownContainer
@@ -589,7 +589,7 @@
                 el = null;
 
             if (this.options['allowEmpty']) {
-                items.push(self._createItem({ text: '&nbsp;', value: '', selected: false }));
+                items.push(self._createItem({ text: '', value: '', selected: false }));
             }
 
             $.each(data, function (index, item) {
@@ -719,6 +719,7 @@
                 }
             });
 
+            /* jshint -W093 */
             return this.display = $('<input>', {
                 'type': 'text',
                 'readonly': 'readonly',
@@ -737,6 +738,7 @@
                     keypress: $.proxy(this._onKeyPress, this)
                 }
             });
+            /* jshint +W093 */
         },
 
         _addContainer: function () {
@@ -1029,6 +1031,7 @@
                     data.text = this.otherValue.val();
                     this.otherValue.data('menuItem', data);
 
+                    /* falls through */
                 case 38: //Up
                 case 40: //Down
                     event.preventDefault();
