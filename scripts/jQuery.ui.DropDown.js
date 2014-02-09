@@ -190,6 +190,8 @@
             filterEx: '^{0}',
             filterOpt: 'i',
             duration: 120,
+            openOnFocus: true,
+            showTrigger: true,
             viewPort: window
         },
         keyTraps: [127, 27, 38, 40, 13, 8, 33, 34, 9],
@@ -267,6 +269,7 @@
                 });
 
             this.trigger = this._addTrigger()
+                .toggle(this.options['showTrigger'] === true)
                 .appendTo(this.container);
 
             this.value
@@ -374,7 +377,7 @@
                     });
 
                 if (this.list.children('.ui-selected').length > 0 && this.otherValue) {
-                    this.otherValue.val('');
+                    this._updOther('');
                 }
 
                 this.value
@@ -408,11 +411,15 @@
             var inverted = this._position(this.dropDownContainer);
 
             this.dropDownContainer
+                .addClass('ui-dropdown-expanding')
                 .toggleClass('ui-dropdown-inverted', inverted)
                 .show({
                     effect: 'slide',
                     direction: inverted ? 'down' : 'up',
-                    duration: this.options['duration']
+                    duration: this.options['duration'],
+                    complete: function() {
+                        $(this).removeClass('ui-dropdown-expanding');
+                    }
                 });
 
             this._updScrollPosition();
@@ -441,7 +448,7 @@
         toggle: function () {
             var vis = this.dropDownContainer.is(':visible');
             if (vis) this.collapse();
-            else this.display.focus();
+            else this._insureOpen();
         },
 
         filter: function (value) {
@@ -465,8 +472,16 @@
                     .show();
 
             if (found.length === 0) {
-                this.display
-                    .effect('highlight', { color: '#C6244A' }, 200);
+                if (this.options['other'] === true) {
+                    this.display
+                        .add(this.otherValue.addClass('ui-state-hover'))
+                        .val(this.currentFilter = value);
+
+                    this._updOther(this.currentFilter);
+                } else {
+                    this.display
+                        .effect('highlight', { color: '#C6244A' }, 200);
+                }
 
                 return $();
             }
@@ -510,7 +525,7 @@
                 .prop('disabled', true);
 
             this.trigger
-                .hide();
+                .toggle(this.options['showTrigger'] && false);
         },
 
         enable: function() {
@@ -519,12 +534,18 @@
                 .prop('disabled', false);
 
             this.trigger
-                .show();
+                .toggle(this.options['showTrigger'] && true);
         },
 
         /***********************************
         **     Helpers
         ***********************************/
+
+        _insureOpen: function() {
+            if (!this.dropDownContainer.is(':visible')) {
+                this.expand();
+            }
+        },
 
         _position: function(elem) {
             elem.css({
@@ -735,7 +756,12 @@
                 'on': {
                     focus: $.proxy(this._onFocus, this),
                     blur: $.proxy(this._onLostFocus, this),
-                    keypress: $.proxy(this._onKeyPress, this)
+                    keypress: $.proxy(this._onKeyPress, this),
+                    click: $.proxy(function() {
+                        if (this.options['showTrigger'] === true) {
+                            this._insureOpen
+                        }
+                    }, this)
                 }
             });
             /* jshint +W093 */
@@ -760,6 +786,23 @@
                 'class': 'ui-dropdown-list',
                 'on': { click: $.proxy(this._onItemClicked, this) }
             });
+        },
+
+        _updOther: function(value) {
+            var existing = this.otherValue.val();
+            var data = this.otherValue.data('menuItem');
+
+            data.text = typeof value !== 'undefined'
+                ? value
+                : existing;
+
+            this.otherValue
+                .data('menuItem', data);
+
+            if (data.text !== existing) {
+                this.otherValue
+                    .val(data.text);
+            }
         },
 
         _applyValidation: function (rules) {
@@ -895,9 +938,9 @@
 
             if (selected.length === 0 && this.otherValue) {
                 selected = this.otherValue;
-                this.otherValue.val(val);
-                var tmp = selected.data('menuItem');
-                tmp.text = val;
+                this._updOther(val);
+//                var tmp = selected.data('menuItem');
+//                tmp.text = val;
             }
 
             if (selected.length === 0) {
@@ -925,6 +968,8 @@
                 .add(this.otherValue)
                 .filter('.ui-state-hover:visible')
                 .first();
+
+            this._insureOpen();
 
             if (opt.length === 0) {
                 opt = this.selected();
@@ -977,8 +1022,6 @@
                         if (opt.length > 0 && opt.val() !== '') {
                             this.selected(opt);
                         }
-
-
                     }
 
                     return true;
@@ -1018,7 +1061,10 @@
 
         _onKeyPress: function (event) {
             if (event.which > 31 && event.which < 127) {
-                this.filter(this.currentFilter + String.fromCharCode(event.which));
+                var filter = this.currentFilter + String.fromCharCode(event.which);
+                this._insureOpen();
+                this.filter(filter);
+                event.preventDefault();
             }
         },
 
@@ -1027,9 +1073,7 @@
                 case 13: //Enter
                 case 9:  //Tab
                     //Update the other's data object
-                    var data = this.otherValue.data('menuItem');
-                    data.text = this.otherValue.val();
-                    this.otherValue.data('menuItem', data);
+                    this._updOther();
 
                     /* falls through */
                 case 38: //Up
@@ -1060,12 +1104,15 @@
         },
 
         _onFocus: function(event) {
-            if (!this.skipFocus) this.expand();
+            if (!this.skipFocus && this.options['openOnFocus'] === true) this.expand();
             this.skipFocus = false;
         },
 
         _onLostFocus: function (event) {
             var self = this;
+            //Ignore lost focus if we are opening the dropdown.
+//            if (this.dropDownContainer.is('.ui-dropdown-expanding')) return;
+
             //Let the browser change focus, then we can see who's focused
             setTimeout(function() {
                 var menuItem = self.dropDownContainer.find(':focus');
